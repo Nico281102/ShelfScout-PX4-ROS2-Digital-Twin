@@ -1,0 +1,12 @@
+altitude_m: 2.5
+hover_time_s: 3
+cruise_speed_mps: 1.0
+waypoints:
+  - [0, 0]
+  - [2, 0]
+  - [2, 1]
+  - [0, 1]
+
+coverage_min_pct: 70
+hover_drift_max_cm: 30
+cpu_temp_max_c: 80

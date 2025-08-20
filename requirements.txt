@@ -1,0 +1,6 @@
+mavsdk
+opencv-python
+pyzbar
+pyyaml
+pandas
+matplotlib
