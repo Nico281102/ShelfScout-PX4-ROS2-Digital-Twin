@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="scan_marker">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+    <link name="marker">
+      <collision name="col">
+        <geometry>
+          <cylinder>
+            <radius>0.12</radius>
+            <length>0.01</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="vis">
+        <geometry>
+          <cylinder>
+            <radius>0.12</radius>
+            <length>0.01</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.1 0.7 0.1 1</ambient>
+          <diffuse>0.1 0.7 0.1 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
+

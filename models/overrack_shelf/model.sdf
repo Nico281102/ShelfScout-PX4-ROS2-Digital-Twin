@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="overrack_shelf">
+    <static>true</static>
+    <!-- Dimensions: width 2.4m, depth 0.8m, height 2.0m -->
+    <link name="frame">
+      <!-- Four support posts -->
+      <visual name="post_fl">
+        <pose>-1.2 -0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+        <material><ambient>0.3 0.3 0.35 1</ambient><diffuse>0.3 0.3 0.35 1</diffuse></material>
+      </visual>
+      <collision name="post_fl_c">
+        <pose>-1.2 -0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+      </collision>
+
+      <visual name="post_fr">
+        <pose>1.2 -0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+        <material><ambient>0.3 0.3 0.35 1</ambient><diffuse>0.3 0.3 0.35 1</diffuse></material>
+      </visual>
+      <collision name="post_fr_c">
+        <pose>1.2 -0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+      </collision>
+
+      <visual name="post_rl">
+        <pose>-1.2 0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+        <material><ambient>0.3 0.3 0.35 1</ambient><diffuse>0.3 0.3 0.35 1</diffuse></material>
+      </visual>
+      <collision name="post_rl_c">
+        <pose>-1.2 0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+      </collision>
+
+      <visual name="post_rr">
+        <pose>1.2 0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+        <material><ambient>0.3 0.3 0.35 1</ambient><diffuse>0.3 0.3 0.35 1</diffuse></material>
+      </visual>
+      <collision name="post_rr_c">
+        <pose>1.2 0.4 1.0 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 2.0</size></box></geometry>
+      </collision>
+
+      <!-- Shelves (boards) at 0.5m and 1.5m -->
+      <visual name="shelf_low">
+        <pose>0 0 0.5 0 0 0</pose>
+        <geometry><box><size>2.4 0.8 0.04</size></box></geometry>
+        <material><ambient>0.6 0.5 0.4 1</ambient><diffuse>0.6 0.5 0.4 1</diffuse></material>
+      </visual>
+      <collision name="shelf_low_c">
+        <pose>0 0 0.5 0 0 0</pose>
+        <geometry><box><size>2.4 0.8 0.04</size></box></geometry>
+      </collision>
+
+      <visual name="shelf_up">
+        <pose>0 0 1.5 0 0 0</pose>
+        <geometry><box><size>2.4 0.8 0.04</size></box></geometry>
+        <material><ambient>0.6 0.5 0.4 1</ambient><diffuse>0.6 0.5 0.4 1</diffuse></material>
+      </visual>
+      <collision name="shelf_up_c">
+        <pose>0 0 1.5 0 0 0</pose>
+        <geometry><box><size>2.4 0.8 0.04</size></box></geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
+
