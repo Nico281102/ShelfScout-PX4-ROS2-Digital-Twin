@@ -4,3 +4,8 @@ pyzbar
 pyyaml
 pandas
 matplotlib
+zxing-cpp
+numpy
+loguru
+rich
+psutil
