@@ -65,10 +65,15 @@ if [[ ! -f "$WORLD_PATH" ]]; then
   exit 1
 fi
 
+export PX4_SITL_WORLD="$WORLD_PATH"
+export PX4_GZ_WORLD="$WORLD_PATH"
+export PX4_GAZEBO_WORLD="$WORLD_PATH"
+
 BUILD_TARGET="px4_sitl_default"
 BUILD_DIR="$PX4_DIR/build/${BUILD_TARGET}"
 mkdir -p "$ROOT_DIR/data/logs"
-LOG_FILE="$ROOT_DIR/data/logs/${BUILD_TARGET}.out"
+LOG_FILE="${PX4_SITL_LOG_FILE:-$ROOT_DIR/data/logs/${BUILD_TARGET}.out}"
+mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 
 # If a user param file exists, expose it to PX4 via px4-rc.params
@@ -91,16 +96,19 @@ if [[ -n "${PX4_RC_PARAMS_FILE:-}" ]]; then
   echo "[launch_px4_gazebo] PX4 params -> $PX4_RC_PARAMS_FILE"
 fi
 
-# 1) Metti PRIMA i modelli di PX4, POI i tuoi (evita override del drone)
+# 1) Dai precedenza ai modelli custom (consente override controllati come la camera frontale)
 PX4_MODELS="$PX4_DIR/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models"
-export GAZEBO_MODEL_PATH="$PX4_MODELS:$ROOT_DIR/models:${GAZEBO_MODEL_PATH:-}"
+CUSTOM_MODELS="$ROOT_DIR/models"
+if [[ -d "$CUSTOM_MODELS" ]]; then
+  export GAZEBO_MODEL_PATH="$CUSTOM_MODELS:$PX4_MODELS:${GAZEBO_MODEL_PATH:-}"
+else
+  export GAZEBO_MODEL_PATH="$PX4_MODELS:${GAZEBO_MODEL_PATH:-}"
+fi
 
 echo "[launch_px4_gazebo] GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH"
 
-# 3) (Facoltivo ma utile) Avvisa se nel repo esiste un iris che potrebbe sovrascrivere
-if [[ -d "$ROOT_DIR/models/iris" || -d "$ROOT_DIR/models/iris_opt_flow" ]]; then
-  echo "[launch_px4_gazebo] WARNING: trovato un modello 'iris*' in $ROOT_DIR/models/. \
-Questo può sovrascrivere quello PX4. Lascialo rinominato o rimuovilo se non ti serve."
+if [[ -f "$CUSTOM_MODELS/iris_opt_flow/iris_opt_flow.sdf" ]]; then
+  echo "[launch_px4_gazebo] Using custom iris_opt_flow model from $CUSTOM_MODELS"
 fi
 
 # forza simulatore e modello corretti
@@ -132,9 +140,8 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-(
-  cd "$PX4_DIR"
-  # target specifico: gazebo-classic_<modello>
-  stdbuf -oL -eL env "${MAKE_ENV[@]}" \
-    make "${BUILD_TARGET}" "gazebo-classic_${PX4_SIM_MODEL}"
-) > >(sed -u "s/^/[px4] /" | tee "$LOG_FILE") 2>&1 &
+cd "$PX4_DIR"
+stdbuf -oL -eL env "${MAKE_ENV[@]}" \
+  make "${BUILD_TARGET}" "gazebo-classic_${PX4_SIM_MODEL}" \
+  | sed -u "s/^/[px4] /" | tee "$LOG_FILE"
+
