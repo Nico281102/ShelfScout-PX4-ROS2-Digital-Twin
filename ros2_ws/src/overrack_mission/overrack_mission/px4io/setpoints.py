@@ -113,7 +113,10 @@ class SetpointPublisher:
         return origin
 
     def _spawn_offset_enu(self) -> tuple[float, float, float]:
-        return (0.0, 0.0, 0.0)
+        offset = self._telemetry.spawn_offset_enu()
+        if offset is None:
+            return (0.0, 0.0, 0.0)
+        return offset
 
     def _now_us(self) -> int:
         return int(self._node.get_clock().now().nanoseconds / 1000)
