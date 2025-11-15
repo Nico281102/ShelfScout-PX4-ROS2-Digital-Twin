@@ -227,9 +227,9 @@
       <name>box_b6</name>
       <pose>0.8 2.6 1.55 0 0 0</pose>
     </include>
-
+  
     <!-- Barcode boards positioned on upper shelves (placeholders) -->
-    <include>
+    <!--<include>
       <uri>model://barcode_board</uri>
       <name>barcode_a1</name>
       <pose>-0.75 -2.5 1.55 0 0 0</pose>
@@ -258,7 +258,7 @@
       <uri>model://barcode_board</uri>
       <name>barcode_b3</name>
       <pose>0.75 2.5 1.55 0 0 0</pose>
-    </include>
+    </include> -->
 
     <!-- Drone (PX4 Iris variant with downward-facing optical flow/camera) -->
     <!-- Requires PX4 sitl_gazebo models available in GAZEBO_MODEL_PATH -->
@@ -273,33 +273,7 @@
     <!-- Overhead downward camera to generate frames for CV pipeline.
          This is a temporary stand-in for a camera mounted directly on the drone.
          It saves frames to data/images/downcam at ~10 FPS. -->
-    <model name="overhead_down_cam">
-      <static>true</static>
-      <pose>1 0 3.5 0 1.5708 0</pose> <!-- Pitch 90deg down -->
-      <link name="cam_link">
-        <sensor name="down_camera" type="camera">
-          <update_rate>10</update_rate>
-          <always_on>true</always_on>
-          <visualize>true</visualize>
-          <camera>
-            <horizontal_fov>1.5708</horizontal_fov> <!-- ~90 deg -->
-            <image>
-              <width>1280</width>
-              <height>720</height>
-              <format>R8G8B8</format>
-            </image>
-            <clip>
-              <near>0.1</near>
-              <far>50</far>
-            </clip>
-            <!-- In SDF 1.6 the 'save' tag uses an 'enabled' attribute -->
-            <save enabled="true">
-              <path>data/images/downcam</path>
-            </save>
-          </camera>
-        </sensor>
-      </link>
-    </model>
+
 
     <!-- Visible scan markers (waypoints) aligned with config/mission.yaml -->
     <!-- Adjust positions if you change waypoints in config -->
