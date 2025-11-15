@@ -64,6 +64,8 @@ class Telemetry:
         # Thread & state
         self._spawn_capture_thread: Optional[threading.Thread] = None
         self._spawn_sync_state = SpawnSyncState.UNREQUESTED
+        self._spawn_sync_state_since = time.monotonic()
+
         self._spawn_ready_event = threading.Event()
 
         # Subscriptions
@@ -199,7 +201,7 @@ class Telemetry:
 
     def spawn_sync_state(self) -> SpawnSyncState:
         return self._spawn_sync_state
-    
+
     def spawn_sync_state_since(self) -> float:
         return self._spawn_sync_state_since
 
