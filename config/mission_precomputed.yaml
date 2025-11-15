@@ -2,22 +2,16 @@ api_version: 1
 frame_id: map
 
 defaults:
-  altitude_m: 2.5
+  altitude_m: 1.0
   hover_time_s: 2.0
-  cruise_speed_mps: 1.0
-  fov_deg: 70
-  overlap: 0.25
+  cruise_speed_mps: 0.5
 
-mode: explicit
-waypoints:
-  - [0.0, 0.0]
-  - [2.0, 0.0]
-  - [2.0, 1.0]
-  - [0.0, 1.0]
+mode: precomputed
+route_file: ../routes/overrack_default.yaml
 
 inspection:
   enable: true
-  timeout_s: 4.0
+  timeout_s: 5.0
 
 fallback:
   battery_warning: ["return_home"]
@@ -27,4 +21,4 @@ fallback:
 
 avoidance: stop
 ignore_gps: true
-land_on_finish: false
+land_on_finish: true

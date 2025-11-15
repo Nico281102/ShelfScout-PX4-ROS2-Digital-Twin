@@ -9,54 +9,155 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
+# shellcheck disable
 set +u
 source "$ENV_FILE"
 set -u
 
+ROOT_DIR="${SSDT_ROOT:-${SHELFSCOUT_ROOT:-$ROOT_DIR}}"
+PX4_DIR="${SSDT_PX4_DIR:-${SHELFSCOUT_PX4_DIR:-${PX4_DIR:-}}}"
 if [[ -z "${PX4_DIR:-}" ]]; then
   echo "[run_ros2_system] PX4_DIR is not set. Check $ENV_FILE." >&2
   exit 1
 fi
 
-ROS2_WS="$ROOT_DIR/ros2_ws"
-LOG_DIR="$ROOT_DIR/data/logs"
+resolve_with_root() {
+  local candidate="$1"
+  if declare -F ssdt_resolve_path >/dev/null 2>&1; then
+    ssdt_resolve_path "$candidate"
+    return
+  elif declare -F shelfscout_resolve_path >/dev/null 2>&1; then
+    shelfscout_resolve_path "$candidate"
+    return
+  fi
+  if [[ -z "$candidate" ]]; then
+    printf '%s\n' "$ROOT_DIR"
+    return
+  fi
+  if [[ "$candidate" = /* ]]; then
+    printf '%s\n' "$candidate"
+  else
+    printf '%s/%s\n' "$ROOT_DIR" "$candidate"
+  fi
+}
+
+# Read YAML defaults (mission/world/agent) via python+PyYAML to keep parsing logic simple.
+load_yaml_defaults() {
+  local yaml_file="$1"
+  local -a defaults
+  if [[ ! -f "$yaml_file" ]]; then
+    return
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "[run_ros2_system] python3 not found; skipping YAML defaults" >&2
+    return
+  fi
+  if mapfile -t defaults < <(python3 - "$yaml_file" <<'PY'
+import sys
+try:
+    import yaml
+except ImportError:
+    sys.stderr.write("[run_ros2_system] PyYAML is required to parse YAML defaults.\n")
+    sys.exit(1)
+from pathlib import Path
+path = Path(sys.argv[1])
+with path.open('r', encoding='utf-8') as handle:
+    data = yaml.safe_load(handle) or {}
+def nested(container, keys):
+    for key in keys:
+        if not isinstance(container, dict):
+            return ""
+        container = container.get(key)
+        if container is None:
+            return ""
+    return container if isinstance(container, str) else ""
+mission = (
+    nested(data, ["run_ros2_system", "ros__parameters", "mission_file"])
+    or nested(data, ["mission_runner", "ros__parameters", "mission_file"])
+    or ""
+)
+world = nested(data, ["run_ros2_system", "ros__parameters", "world_file"]) or ""
+agent = nested(data, ["run_ros2_system", "ros__parameters", "agent_cmd"]) or ""
+print(mission)
+print(world)
+print(agent)
+PY
+); then
+    YAML_MISSION_DEFAULT="${defaults[0]:-}"
+    YAML_WORLD_DEFAULT="${defaults[1]:-}"
+    YAML_AGENT_DEFAULT="${defaults[2]:-}"
+  else
+    echo "[run_ros2_system] Unable to parse YAML defaults from $yaml_file" >&2
+  fi
+}
+
+ROS2_WS="$(resolve_with_root "${SSDT_ROS_WS:-${SHELFSCOUT_ROS_WS:-$ROOT_DIR/ros2_ws}}")"
+LOG_DIR="$(resolve_with_root "${SSDT_LOG_DIR:-${SHELFSCOUT_LOG_DIR:-$ROOT_DIR/data/logs}}")"
 mkdir -p "$LOG_DIR"
 
-HEADLESS=1
-WORLD_OPT=""
-MISSION_OPT=""
-DEFAULT_AGENT_CMD="MicroXRCEAgent udp4 -p 8888 -v 6"
-AGENT_CMD="${AGENT_CMD:-${XRCE_AGENT_CMD:-${MICROXRCE_AGENT_CMD:-${MICRORTPS_AGENT_CMD:-$DEFAULT_AGENT_CMD}}}}"
+HEADLESS="${SSDT_HEADLESS_DEFAULT:-${SHELFSCOUT_HEADLESS_DEFAULT:-1}}"
+DEFAULT_AGENT_CMD="${SSDT_AGENT_CMD:-${SHELFSCOUT_AGENT_CMD:-MicroXRCEAgent udp4 -p 8888 -v 6}}"
+AGENT_CMD_ENV_OVERRIDE="${AGENT_CMD:-${XRCE_AGENT_CMD:-${MICROXRCE_AGENT_CMD:-${MICRORTPS_AGENT_CMD:-}}}}"
+AGENT_CMD=""
 CLEANED_UP=0
-PX4_LOG="$LOG_DIR/px4_sitl_default.out"
-GAZEBO_LOG="$LOG_DIR/px4_gazebo.out"
+PX4_LOG="$(resolve_with_root "${SSDT_PX4_LOG:-${SHELFSCOUT_PX4_LOG:-$LOG_DIR/px4_sitl_default.out}}")"
+GAZEBO_LOG="$(resolve_with_root "${SSDT_GAZEBO_LOG:-${SHELFSCOUT_GAZEBO_LOG:-$LOG_DIR/px4_gazebo.out}}")"
+DEFAULT_WORLD="${SSDT_WORLD:-${SHELFSCOUT_WORLD:-worlds/overrack_indoor.world}}"
+DEFAULT_MISSION_FILE="${SSDT_MISSION_FILE:-${SHELFSCOUT_MISSION_FILE:-config/mission_precomputed.yaml}}"
+DEFAULT_PARAM_FILE="${SSDT_PARAM_FILE:-${SHELFSCOUT_PARAM_FILE:-ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml}}"
+WORLD_PATH=""
+MISSION_PATH=""
+PARAM_FILE_PATH="${SSDT_PARAM_PATH:-${SHELFSCOUT_PARAM_PATH:-$(resolve_with_root "$DEFAULT_PARAM_FILE")}}"
+YAML_MISSION_DEFAULT=""
+YAML_WORLD_DEFAULT=""
+YAML_AGENT_DEFAULT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --headless) HEADLESS=1; shift ;;
-    --gui)      HEADLESS=0; shift ;;
-    --world)    WORLD_OPT=${2:-}; shift 2 ;;
-    --mission)  MISSION_OPT=${2:-}; shift 2 ;;
-    --agent-cmd) AGENT_CMD=${2:-}; shift 2 ;;
-    *) echo "[run_ros2_system] Unknown argument: $1" >&2; exit 1 ;;
+    --headless)
+      HEADLESS=1
+      shift
+      ;;
+    --gui)
+      HEADLESS=0
+      shift
+      ;;
+    *)
+      echo "[run_ros2_system] Unknown argument: $1 (only --gui/--headless are supported)" >&2
+      exit 1
+      ;;
   esac
 done
+
+if [[ ! -f "$PARAM_FILE_PATH" ]]; then
+  echo "[run_ros2_system] Parameter file not found: $PARAM_FILE_PATH" >&2
+  exit 1
+fi
+
+# Allow the YAML file to drive mission/world/agent defaults.
+load_yaml_defaults "$PARAM_FILE_PATH"
+if [[ -n "$YAML_WORLD_DEFAULT" ]]; then
+  WORLD_PATH="$(resolve_with_root "$YAML_WORLD_DEFAULT")"
+else
+  WORLD_PATH="$(resolve_with_root "$DEFAULT_WORLD")"
+fi
+if [[ -n "$YAML_MISSION_DEFAULT" ]]; then
+  MISSION_PATH="$(resolve_with_root "$YAML_MISSION_DEFAULT")"
+else
+  MISSION_PATH="$(resolve_with_root "$DEFAULT_MISSION_FILE")"
+fi
+if [[ -n "$YAML_AGENT_DEFAULT" ]]; then
+  AGENT_CMD="$YAML_AGENT_DEFAULT"
+elif [[ -n "$AGENT_CMD_ENV_OVERRIDE" ]]; then
+  AGENT_CMD="$AGENT_CMD_ENV_OVERRIDE"
+else
+  AGENT_CMD="$DEFAULT_AGENT_CMD"
+fi
 
 read -r -a AGENT_CMD_ARRAY <<< "$AGENT_CMD"
 if [[ ${#AGENT_CMD_ARRAY[@]} -eq 0 ]]; then
   echo "[run_ros2_system] Invalid AGENT_CMD: $AGENT_CMD" >&2
   exit 1
-fi
-
-WORLD_PATH="$ROOT_DIR/worlds/overrack_indoor.world"
-if [[ -n "$WORLD_OPT" ]]; then
-  [[ "$WORLD_OPT" = /* ]] && WORLD_PATH="$WORLD_OPT" || WORLD_PATH="$ROOT_DIR/$WORLD_OPT"
-fi
-
-MISSION_PATH="$ROOT_DIR/config/mission.yaml"
-if [[ -n "$MISSION_OPT" ]]; then
-  [[ "$MISSION_OPT" = /* ]] && MISSION_PATH="$MISSION_OPT" || MISSION_PATH="$ROOT_DIR/$MISSION_OPT"
 fi
 
 ensure_colcon_workspace() {
@@ -75,46 +176,51 @@ ensure_colcon_workspace() {
 }
 
 source_ros2() {
-  echo "[run_ros2_system] source_ros2(): entro"
+  echo "[run_ros2_system] source_ros2(): start"
 
-  local had_u=0
-  # se lo script è in set -u lo spengo un attimo
-  if [[ $- == *u* ]]; then
-    had_u=1
-    set +u
-  fi
-
-  # voglio vedere cosa c'è
-  echo "[run_ros2_system] ls /opt/ros/humble:"
-  ls -1 /opt/ros/humble 2>/dev/null || echo "[run_ros2_system] /opt/ros/humble NON esiste"
-
-  # 1) ROS2 di sistema
-  if [[ -f /opt/ros/humble/setup.bash ]]; then
-    echo "[run_ros2_system] sourcing /opt/ros/humble/setup.bash"
-    # shellcheck disable=SC1090
-    source /opt/ros/humble/setup.bash
+  if declare -F ssdt_source_ros >/dev/null 2>&1; then
+    echo "[run_ros2_system] delegating to ssdt_source_ros()"
+    ssdt_source_ros
+  elif declare -F shelfscout_source_ros >/dev/null 2>&1; then
+    echo "[run_ros2_system] delegating to shelfscout_source_ros()"
+    shelfscout_source_ros
   else
-    echo "[run_ros2_system] /opt/ros/humble/setup.bash NON trovato"
+    local ros_distro="${SSDT_ROS_DISTRO:-${SHELFSCOUT_ROS_DISTRO:-humble}}"
+    local had_u=0
+    if [[ $- == *u* ]]; then
+      had_u=1
+      set +u
+    fi
+
+    echo "[run_ros2_system] listing /opt/ros/${ros_distro}"
+    ls -1 "/opt/ros/${ros_distro}" 2>/dev/null || echo "[run_ros2_system] /opt/ros/${ros_distro} is missing"
+
+    local distro_setup="/opt/ros/${ros_distro}/setup.bash"
+    if [[ -f "$distro_setup" ]]; then
+      echo "[run_ros2_system] sourcing $distro_setup"
+      # shellcheck disable=SC1090
+      source "$distro_setup"
+    else
+      echo "[run_ros2_system] $distro_setup not found"
+    fi
+
+    local overlay_setup="$ROS2_WS/install/setup.bash"
+    if [[ -f "$overlay_setup" ]]; then
+      echo "[run_ros2_system] sourcing $overlay_setup"
+      # shellcheck disable=SC1090
+      source "$overlay_setup"
+    else
+      echo "[run_ros2_system] $overlay_setup not found"
+    fi
+
+    if [[ $had_u -eq 1 ]]; then
+      set -u
+    fi
   fi
 
-  # 2) overlay del progetto
-  if [[ -f "$ROS2_WS/install/setup.bash" ]]; then
-    echo "[run_ros2_system] sourcing $ROS2_WS/install/setup.bash"
-    # shellcheck disable=SC1090
-    source "$ROS2_WS/install/setup.bash"
-  else
-    echo "[run_ros2_system] $ROS2_WS/install/setup.bash NON trovato"
-  fi
-
-  # riaccendo -u se c’era
-  if [[ $had_u -eq 1 ]]; then
-    set -u
-  fi
-
-  # ora vediamo chi è ros2
   command -v ros2 >/dev/null 2>&1 \
-    && echo "[run_ros2_system] ros2 trovato in: $(command -v ros2)" \
-    || echo "[run_ros2_system] ros2 ANCORA non trovato dopo i source"
+    && echo "[run_ros2_system] ros2 found at: $(command -v ros2)" \
+    || echo "[run_ros2_system] ros2 still missing after sourcing"
 
   echo "[run_ros2_system] PATH: $PATH"
 }
@@ -135,8 +241,8 @@ if [[ ! -x "$LAUNCH_SCRIPT" ]]; then
   exit 1
 fi
 
-echo "[run_ros2_system] PX4 world => $WORLD_PATH"
-echo "[run_ros2_system] Mission   => $MISSION_PATH"
+echo "[run_ros2_system] PX4 world => $WORLD_PATH (from $PARAM_FILE_PATH)"
+echo "[run_ros2_system] Mission   => $MISSION_PATH (from $PARAM_FILE_PATH)"
 echo "[run_ros2_system] Agent cmd => $AGENT_CMD"
 [[ $HEADLESS -eq 1 ]] && echo "[run_ros2_system] Gazebo client disabled (headless)"
 
@@ -225,7 +331,8 @@ echo "[run_ros2_system] PX4 RTPS bridge ready; launching mission runner"
 
 MISSION_LOG="$LOG_DIR/mission_runner.out"
 : > "$MISSION_LOG"
-ros2 run overrack_mission mission_runner --ros-args -p mission_file:="$MISSION_PATH" \
+
+ros2 run overrack_mission mission_runner --ros-args --params-file "$PARAM_FILE_PATH" \
   >"$MISSION_LOG" 2>&1 &
 MISSION_PID=$!
 echo "[run_ros2_system] Mission runner started (logs -> $MISSION_LOG)"

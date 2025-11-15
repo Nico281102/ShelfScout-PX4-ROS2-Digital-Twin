@@ -1,0 +1,5 @@
+This plan will help fix the simulator mavlink timeout issues step-by-step.
+
+1. Collect diagnostic information: list running PX4/Gazebo processes and tail PX4 log to confirm poll timeout pattern.
+2. Inspect mission runner log for additional errors or missing MAVLink bridge startup.
+3. Identify root cause (likely micro XRCE agent or RTPS bridge not running) and apply fix to orchestrator.

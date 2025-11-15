@@ -1,0 +1,21 @@
+# Defaults consumed by scripts/run_ros2_system.sh
+run_ros2_system:
+  ros__parameters:
+    world_file: worlds/overrack_indoor.world
+    agent_cmd: MicroXRCEAgent udp4 -p 8888 -v 6
+
+mission_runner:
+  ros__parameters:
+    mission_file: config/mission_precomputed.yaml
+    gazebo_model_name: iris_opt_flow
+    world_bounds.x: [-5.0, 5.0]
+    world_bounds.y: [-4.0, 4.0]
+    world_bounds.z: [-3.0, -0.1]
+    cruise_speed_limits: [0.2, 2.0]
+    debug_frames: true
+inspection_node:
+  ros__parameters:
+    image_topic: /overrack/iris/front_camera/image_raw
+    low_light_threshold: 40.0
+    suspect_variance: 12.0
+    publish_period_s: 0.5

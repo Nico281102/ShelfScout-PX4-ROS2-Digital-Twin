@@ -10,6 +10,7 @@
 
   <depend>rclpy</depend>
   <depend>px4_msgs</depend>
+  <depend>gazebo_msgs</depend>
 
   <exec_depend>python3-yaml</exec_depend>
 

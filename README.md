@@ -32,12 +32,12 @@ ROS 2 Workspace (ros2_ws)
 | `docs/` | Mission language reference, bridge details, structure review, and archived notes. |
 
 ## Environment Setup
-### Prerequisites
-- Ubuntu 22.04 with ROS 2 Humble (desktop install) and `colcon`.
-- PX4-Autopilot sources (tested with v1.14.x) built at least once via `make px4_sitl_default`.
-- Micro XRCE-DDS Agent available on the `PATH` (or built locally and referenced in scripts).
-- Gazebo Classic 11 with `gzserver`, `gzclient`, and PX4 dependencies.
-- Python 3.10 + `pip` (create a virtual environment if you need isolated tooling).
+### Prerequisites (reference versions)
+- Ubuntu 22.04 LTS with ROS 2 Humble installed (`ros-humble-desktop` 0.10.0-1jammy.20250916.062930) and `colcon`.
+- PX4-Autopilot `v1.14.4` (local fork; see `$SSDT_PX4_DIR`, built via `make px4_sitl_default`).
+- Micro XRCE-DDS Agent `v2.4.3` (binary exported via `$SSDT_MICRO_XRCE_DIR`).
+- Gazebo Classic `11.10.2` (`gazebo` / `gzserver` on PATH).
+- Python `3.10.12` + `pip` (create a virtual environment if you need isolated tooling).
 
 ### Workspace Preparation
 1. Copy `scripts/.env.example` to `scripts/.env` and adjust the SSDT variables (`SSDT_PX4_DIR`, `SSDT_ROS_WS`, `SSDT_AGENT_CMD`, etc.) so they point to your PX4 checkout, ROS workspace, and preferred defaults.
@@ -67,33 +67,62 @@ The ShelfScout Digital Twin (SSDT) profile lives in `scripts/.env` and is source
 
 Always `source scripts/.env` before manual commands, or let the provided scripts do it for you. To refresh your setup, edit `scripts/.env` (or start from `scripts/.env.example`) and re-run the launch script.
 
+### Mission / world / agent defaults
+Mission content and simulator defaults live in `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml`:
+- `run_ros2_system.ros__parameters.world_file` — Gazebo world used by PX4 SITL.
+- `run_ros2_system.ros__parameters.agent_cmd` — command line passed to the Micro XRCE-DDS agent.
+- `mission_runner.ros__parameters.mission_file` — mission YAML parsed by the ROS node (see `docs/mission_v1.md`).
+Change those paths once in the YAML and re-run `scripts/run_ros2_system.sh`; no CLI overrides or env tweaks are necessary anymore.
+
+> **When to rebuild `ros2_ws`**
+> - Any change under `ros2_ws/src/**` (Python nodes, launch files, msgs) or edits to `setup.py` / `package.xml` require `colcon build --symlink-install`.
+> - Run the build manually, then `source ros2_ws/install/setup.bash` before invoking `scripts/run_ros2_system.sh` again. The script only auto-builds when `install/setup.bash` is missing.
+
+| Component            | Version / Tag                         | Notes |
+| -------------------- | ------------------------------------- | ----- |
+| ROS 2 Humble         | `ros-humble-desktop` 0.10.0-1jammy…   | `dpkg -s ros-humble-desktop` |
+| PX4-Autopilot        | `v1.14.4-dirty`                       | `git describe` in `$SSDT_PX4_DIR` |
+| Micro XRCE-DDS Agent | `v2.4.3`                              | built from `$SSDT_MICRO_XRCE_DIR` |
+| Gazebo Classic       | `11.10.2`                             | `gazebo --version` |
+| Python               | `3.10.12`                             | `python3 --version` |
+| colcon-core          | `0.20.0`                              | `python3 -m importlib.metadata` |
+| colcon-ros           | `0.5.0`                               | same as above |
+| colcon-cmake         | `0.2.29`                              | same as above |
+| colcon-bash          | `0.5.0`                               | same as above |
+
 ## Launch with `run_ros2_system.sh`
 Use the orchestrator from the repository root to start PX4, Gazebo, the Micro XRCE-DDS Agent, and all ROS 2 nodes:
 
 ```bash
-PX4_DIR=/absolute/path/to/PX4-Autopilot \
-./scripts/run_ros2_system.sh \
-  --gui \                           # use --headless for CI or SSH
-  --world worlds/overrack_indoor.world \
-  --mission config/mission.yaml \
-  --agent-cmd "MicroXRCEAgent udp4 -p 8888 -v 6"
+./scripts/run_ros2_system.sh --gui      # use --headless for CI or SSH
 ```
+`run_ros2_system.sh` now refuses every other CLI flag on purpose: the world file, mission file, and XRCE agent command are loaded from `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml` (`run_ros2_system.ros__parameters` and `mission_runner.ros__parameters`). Edit that YAML to choose a different mission/world/agent and rerun the script—no more long command lines or env overrides. (The script parses the YAML via PyYAML, so keep `python3 -m pip install pyyaml` handy.)
+
 The script performs the following:
 - Verifies and (re)builds `ros2_ws` if needed.
-- Launches PX4 SITL + Gazebo via `scripts/launch_px4_gazebo.sh`, extending `GAZEBO_MODEL_PATH` for the custom rack world.
-- Starts or reuses the Micro XRCE-DDS Agent and tails its log to `data/logs/micro_xrce_agent.out`.
-- Runs `ros2 run overrack_mission mission_runner --ros-args -p mission_file:=...` logging to `data/logs/mission_runner.out`.
+- Reads `param/sim.yaml` to resolve `world_file`, `mission_file`, and `agent_cmd`, then launches PX4 SITL + Gazebo via `scripts/launch_px4_gazebo.sh`.
+- Starts the Micro XRCE-DDS Agent exactly as declared in the YAML and tails its log to `data/logs/micro_xrce_agent.out`.
+- Runs `ros2 run overrack_mission mission_runner --ros-args --params-file <sim.yaml>` logging to `data/logs/mission_runner.out`.
 - Streams PX4 output to `data/logs/px4_sitl_default.out` for later inspection.
 
 If you ever need to kill everything quickly, `scripts/stop_manual_like.sh` still terminates PX4, Gazebo, the agent, and the mission runner.
 
 ## Mission Runner and ROS 2 Nodes
-- **Mission Runner (`mission_node.py`)**: loads the YAML plan supplied via `mission_file`, instantiates `MissionController`, `MissionStateMachine`, and `InspectionNode`, and publishes Offboard setpoints at 20 Hz once PX4 reports readiness.
-- **Mission Engine**: `mission_engine/controller.py`, `plan_parser.py`, `state_machine.py`, and `setpoints.py` translate mission plans into PX4 topic interactions. Modes include `explicit` waypoint execution, `precomputed` route playback (from `routes/*.yaml`), and `coverage` patterns generated by `planning/coverage_planner.py`.
-- **Telemetry helpers**: `mission_engine/telemetry.py` aggregates `VehicleLocalPosition`, `VehicleStatus`, `BatteryStatus`, and inspection events to gate arming/offboard transitions and to enforce tolerances.
-- **Perception (`perception/inspection_node.py`)**: subscribes to `sensor_msgs/Image` (configurable `image_topic`) and mission state updates to label each inspection stage as `OK`, `SUSPECT`, or `LOW_LIGHT`.
-- **Metrics (`metrics/metrics_node.py`)**: listens to mission states and inspection events, counts fallback occurrences, and writes summary + per-inspection CSV artefacts into `data/metrics/` at shutdown.
-The ROS 2 package is registered through `ros2_ws/src/overrack_mission/setup.py`, which wires the entry points above so `colcon build` exposes `mission_runner`, `inspection_node`, and `mission_metrics` as console scripts after installation.
+- **Mission Runner (`nodes/mission_control_node.py`)**: loads the YAML plan supplied via `mission_file`, instantiates the ROS-free `MissionController`, and publishes Offboard setpoints at 20 Hz once PX4 reports readiness while co-spinning the inspection node.
+- **Mission Core**: `core/controller.py`, `core/plan.py`, `core/fsm.py`, and `core/planning/` translate mission plans into PX4 topic interactions. Modes include `explicit` waypoint execution, `precomputed` route playback (from `routes/*.yaml`), and `coverage` patterns generated by the planner.
+- **PX4 adapters**: `px4io/setpoints.py`, `px4io/telemetry.py`, and `px4io/qos.py` centralise QoS profiles, telemetry subscriptions, and command publishers. Every waypoint remains ENU in the mission files; the adapters convert to PX4’s NED frame (with yaw expressed in degrees → radians), subtract the spawn offset learned from the first odometry sample, and clamp the command to your declared `world_bounds` so the drone never exits the indoor volume.
+- **Inspection (`nodes/inspection_node.py`)**: subscribes to `sensor_msgs/Image` (configurable `image_topic`) and mission state updates to label each inspection stage as `OK`, `SUSPECT`, or `LOW_LIGHT`.
+- **Metrics (`nodes/metrics_node.py`)**: listens to mission states and inspection events, counts fallback occurrences, and writes summary + per-inspection CSV artefacts into `data/metrics/` at shutdown.
+The ROS 2 package is registered through `ros2_ws/src/overrack_mission/setup.py`, which wires the entry points above so `colcon build` exposes `mission_runner`, `inspection_node`, and `mission_metrics` as console scripts after installation. See `docs/mission_v1.md` (“Mission Runner Internals”) for a deep dive into the state machine, yaw conventions, and parameter schema.
+
+### Mission Runner parameters (sim)
+`ros2 launch overrack_mission mission.sim.launch.py mission_file:=config/mission1.yaml` remains the quickest way to start the stack. That launch file feeds `param/sim.yaml`, which now exposes:
+- `mission_file`: YAML plan (still overridable via `mission_file:=...`).
+- `world_bounds.{x,y,z}` (meters in NED): rectangular safety limits mirrored into ENU for plan validation; every waypoint outside these numbers causes a load-time failure, and every PX4 setpoint is clamped to the same box after the spawn-offset correction.
+- `cruise_speed_limits`: `[min, max]` guard rails checked against `cruise_speed_mps`.
+- `debug_frames`: when `true`, each waypoint prints one `FrameDebug[...]` line with ENU target, NED target, applied offset, current PX4 pose, and yaw.
+
+The inspection node keeps its `image_topic`, `low_light_threshold`, and QoS wired to the shared `EVENTS_QOS`. An archived RTAB-Map launch now lives under `launch/experimental/` so it stays available without cluttering the default mission launch.
 
 ## Data, Logs, and Analysis Tools
 - `data/logs/` collects PX4, agent, mission runner, and auxiliary script logs for regression tracking.
@@ -102,7 +131,8 @@ The ROS 2 package is registered through `ros2_ws/src/overrack_mission/setup.py`,
 - `scripts/run_vision.py` and `scripts/run_visual_demo.py` provide optional visualisation/analytics entry points.
 
 ## Troubleshooting
-- **Offboard rejected**: confirm at least 20 trajectory setpoints are streamed before `VehicleCommand.DO_SET_MODE`, and verify `vehicle_status.nav_state` plus pe-flight checks via `mission_engine/telemetry.py` helpers.
+- **Offboard rejected**: confirm at least 20 trajectory setpoints are streamed before `VehicleCommand.DO_SET_MODE`, and verify `vehicle_status.nav_state` plus pre-flight checks via `px4io/telemetry.py` helpers.
+- **Unexpected drift / “drone leaves the room”**: enable `debug_frames:=true` to log a single ENU/NED/offset/local snapshot per waypoint and double-check your `world_bounds`.
 - **No `/fmu/out/*` topics**: check `data/logs/micro_xrce_agent.out` for agent crashes, ensure the PX4 branch matches the agent binary, and confirm UDP ports 2019/2020 are free.
 - **Fallback not firing**: ensure triggers in the mission YAML match published event names (e.g., `battery_warning`, `low_light`) and monitor `overrack/inspection` output.
 - **Gazebo refuses to start**: rebuild PX4 (`make px4_sitl_default`), try `--headless`, and verify that `GAZEBO_MODEL_PATH` contains both PX4 and OverRack models.
@@ -163,6 +193,140 @@ We noticed that running the same script from an SSH / VS Code remote shell somet
 but the default is: put it right after the PX4 + Gazebo section so operators will actually see it.
 
 - **Known PX4 + Gazebo Classic startup quirk**: occasionally `gzserver` accepts connections before the world is fully initialised, so PX4’s `gz model --spawn-file=...` call fails with “An instance of Gazebo is not running.” Patch `PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_run.sh` to add a short delay after starting `gzserver` (e.g., `sleep 4`) and retry the spawn loop until it succeeds. This prevents runs getting stuck after printing `Using: .../iris_opt_flow.sdf` and matches the workaround already applied in our local PX4 fork.
+
+
+### Drone spawns in a different point / diagonal takeoff
+
+#### Symptoms
+
+- In Gazebo the Iris model is spawned near the shelves, not at the world origin.
+- PX4 odometry still starts at NED (0, 0, 0).
+- When starting a mission the vehicle:
+  - arms and enters OFFBOARD,
+  - but the initial motion is a low **diagonal drift** instead of a clean vertical climb.
+- In older logs the first `Bootstrap setpoint` lines already show **non-zero** ENU X/Y.
+
+#### Root cause (frames & spawn offset)
+
+Mission waypoints are defined in the **map/world ENU frame**, while PX4 flies in its **local NED frame**.
+
+When the drone does not spawn at ENU (0, 0), there is a non-zero **spawn offset** between those frames.  
+If that offset is subtracted too early (during takeoff), PX4 tries to reach a target that already includes the offset, which results in a diagonal move very close to the ground.
+
+#### How the stack handles it now
+
+1. **Spawn offset sync (Gazebo ↔ PX4)**
+
+   - `Telemetry` subscribes to `/gazebo/model_states` and detects the pose of the configured `gazebo_model` (e.g. `iris_opt_flow`).
+   - In a background thread it queries Gazebo:
+     - `/gazebo/get_entity_state` **or**
+     - `/gazebo/get_model_state`
+   - The spawn position is cached as:
+
+     ```text
+     spawn_offset_enu = (x, y, z)   # in the Gazebo world frame
+     ```
+
+   - `MissionController._check_spawn_sync_ready()` blocks the FSM until:
+
+     - spawn sync state is `READY` (or a timeout/failure is reached),
+     - a valid PX4 local position is available (`local_position().xy_valid == True`),
+     - `spawn_offset_enu` is non-null.
+
+   - While waiting, the controller logs messages such as:
+
+     - `Waiting for Gazebo model detection before capturing spawn offset...`
+     - `Waiting for Gazebo spawn offset (query in flight)...`
+     - `Waiting for EKF local position...`
+     - `Waiting for PX4 to publish initial odometry pose...`
+
+   - When everything is ready you should see:
+
+     ```text
+     Spawn offset fetched from Gazebo (...): ENU (x=..., y=..., z=...)
+     [DEBUG] Spawn offset synced: Gazebo=(..., ..., ...)
+     Gazebo spawn offset and EKF pose ready; proceeding with TAKEOFF bootstrap
+     ```
+
+2. **Pure vertical takeoff (bootstrap phase)**
+
+   - While the FSM is in `BootstrapState`, `OffboardInitState` and `ArmingState` it does **not** fly mission waypoints.
+   - Instead it uses `MissionContext.bootstrap_position_enu()` which returns:
+
+     ```text
+     (0.0, 0.0, plan.altitude_m)
+     ```
+
+   - `SetpointPublisher` runs in `bootstrap_mode = True`, so `_prepare_target()` ignores `spawn_offset_enu` and only applies the ENU→NED rotation:
+
+     ```text
+     ENU (0.0, 0.0, ALT)  ->  NED (0.0, 0.0, -ALT)
+     ```
+
+   - The first 20 `TrajectorySetpoint`s therefore form a **pure vertical climb** in PX4’s local frame (no horizontal motion).  
+     In the logs you should see, for the whole bootstrap phase:
+
+     ```text
+     Bootstrap setpoint N/20 -> ENU(0.00, 0.00, ALT) NED(0.00, 0.00, -ALT)
+     ```
+
+   - Only after OFFBOARD is active and the vehicle is ARMED does the FSM leave the bootstrap states.
+
+3. **Switching to map-aligned waypoints**
+
+   - On the first transition **out of** `BootstrapState` / `OffboardInitState` / `ArmingState`, the FSM calls:
+
+     ```python
+     ctx.mark_bootstrap_complete()
+     setpoints.set_bootstrap_mode(False)
+     ```
+
+   - From that moment on:
+
+     - `MissionContext.target_position_enu` comes from the mission plan (map/world ENU).
+     - `SetpointPublisher._prepare_target()` now **subtracts** `spawn_offset_enu` before converting to NED:
+
+       ```text
+       local_enu = enu_position - spawn_offset_enu
+       NED       = (local_enu.y, local_enu.x, -local_enu.z)
+       ```
+
+   - Effectively:
+     - The entire takeoff leg is a **local-frame vertical climb**.
+     - Once the drone is safely at `plan.altitude_m`, the controller starts applying the ENU spawn offset and moves horizontally over the rack according to the mission waypoints.
+
+#### If things still look wrong
+
+- **Check the Gazebo model name**
+
+  Make sure the `gazebo_model` argument in `Telemetry` matches the actual entry in `/gazebo/model_states` (e.g. `iris`, `iris_opt_flow`, etc.).
+
+- **Check the spawn-offset logs**
+
+  You should see a line like:
+
+
+  Spawn offset fetched from Gazebo (/gazebo/get_entity_state): ENU (x=1.01, y=0.98, z=0.05)
+  Gazebo spawn offset and EKF pose ready; proceeding with TAKEOFF bootstrap
+
+
+If not, the controller is probably still waiting for Gazebo or for PX4 odometry.
+
+* **Make sure the takeoff altitude is high enough**
+
+  Set `plan.altitude_m` (or the first step’s Z) to something like 2–3 m so that the first horizontal motion happens well above the ground.
+
+* **Return-home goes to the “wrong” origin**
+
+  By default `ReturnHomeState` flies to `plan.home_position` in ENU.
+  If your drone spawns away from ENU (0, 0), and you want the **return-home** fallback to go back to the actual spawn point, set `home_position` in the mission YAML to the X/Y printed in the spawn-offset log, for example:
+
+  ```yaml
+  home_position: [1.01, 0.98]  # ENU X/Y of the drone spawn
+  ```
+
+  `ReturnHomeState` will then command a hover above that ENU position at the mission altitude.
+
 
 ## How AI was used in this project
 - The markdow is almost fully IA written, of course is carefully checked by the developer, but checking is faster than starting writing from zero.

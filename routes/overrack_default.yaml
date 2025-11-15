@@ -1,0 +1,71 @@
+route:
+  name: overrack_default
+  frame_id: map
+  default_altitude_m: 1.2
+  default_hover_s: 2.0
+
+  steps:
+    - name: takeoff
+      position: [0.0, 0.0, 3.0]
+      hover_s: 2.0
+      inspect: false
+
+    - name: andiamo_a_sinistra
+      position: [-1.5, 0.0, 1.2]
+      hover_s: 2.0
+      inspect: false
+
+    # Aisle sud (guarda verso nord = +y)
+    - name: south_west_corner
+      position: [-2, -3.5, 1.2]
+      yaw_deg: 90.0
+      inspect: true
+      action: snapshot
+
+    - name: south_mid
+      position: [0.0, -3.5, 1.2]
+      yaw_deg: 90.0
+      inspect: true
+      action: snapshot
+
+    - name: south_east_corner
+      position: [3.6, -3.5, 1.2]
+      yaw_deg: 90.0
+      inspect: true
+      action: snapshot
+
+    # Corridoio est: risale verso nord (facoltativo guardare a -x)
+    - name: east_corridor_mid
+      position: [3.6, 0.0, 1.2]
+      yaw_deg: 180.0
+      inspect: false
+
+    # Aisle nord (guarda verso sud = -y)
+    - name: north_east_corner
+      position: [3.6, 3.5, 1.2]
+      yaw_deg: -90.0
+      inspect: true
+      action: snapshot
+
+    - name: north_mid
+      position: [0.0, 3.5, 1.2]
+      yaw_deg: -90.0
+      inspect: true
+      action: snapshot
+
+    - name: north_west_corner
+      position: [-3.6, 3.5, 1.2]
+      yaw_deg: -90.0
+      inspect: true
+      action: snapshot
+
+    # Corridoio ovest: ridiscende (facoltativo guardare a +x)
+    - name: west_corridor_mid
+      position: [-3.6, 0.0, 1.2]
+      yaw_deg: 0.0
+      inspect: false
+
+    - name: hold_end
+      position: [0.0, 0.0, 1.2]
+      yaw_deg: 0.0
+      inspect: false

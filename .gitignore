@@ -1,7 +1,56 @@
+.gitignore
 .venv/
 __pycache__/
 *.pyc
-data/logs/
-data/images/
+data
 .ipynb_checkpoints
 .vscode/
+.venv_backup/
+scripts/data/images
+
+# ROS2 colcon build outputs
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# PX4 build outputs
+PX4/PX4-Autopilot/build/
+PX4/PX4-Autopilot/Tools/simulation/gazebo-classic/build_gazebo-classic/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+.venv_backup/
+env/
+venv/
+
+# VSCode settings
+.vscode/
+*.code-workspace
+
+# Logs and temp
+*.log
+*.tmp
+*.swp
+*~
+
+# System-specific
+.DS_Store
+Thumbs.db
+
+build/
+install/
+log/
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+.env
+# Internal tracking
+TODO_INTERNAL.md
+
+docs/structure_review.md
