@@ -100,9 +100,6 @@ class MissionContext:
         self.hover_deadline: Optional[float] = None
         self._hover_extension_s = 0.0
         self._last_hover_duration_s = self.plan.hover_time_s
-        self._mission_complete = False
-        self._mission_start_time: Optional[float] = None
-        self._mission_end_time: Optional[float] = None
         self._fallback_queue: Deque[FallbackAction] = deque()
         self._active_action: Optional[FallbackAction] = None
         self._handled_triggers: set[str] = set()
@@ -173,8 +170,6 @@ class MissionContext:
             if self.current_index == 1 and not self._bootstrap_complete:
                 self.mark_bootstrap_complete()
             return True
-        self._mission_complete = True
-        self._mission_end_time = self.now()
         self.publish_state("MISSION_COMPLETE")
         if not self._bootstrap_complete:
             self.mark_bootstrap_complete()
@@ -202,13 +197,6 @@ class MissionContext:
         self.logger.info(message)
 
     # Mission lifecycle -------------------------------------------------
-
-    def mark_mission_started(self) -> None:
-        if self._mission_start_time is None:
-            self._mission_start_time = self.now()
-
-    def mission_complete(self) -> bool:
-        return self._mission_complete
 
     # Hover helpers -----------------------------------------------------
 
@@ -351,7 +339,6 @@ class ArmingState(State):
             self._arm_sent = True
             return None
         if ctx.telemetry.is_armed():
-            ctx.mark_mission_started()
             return TransitState
         return None
 

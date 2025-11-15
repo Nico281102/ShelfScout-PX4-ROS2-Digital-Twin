@@ -28,4 +28,11 @@ EVENTS_QOS = QoSProfile(
     depth=10,
 )
 
-__all__ = ["CONTROL_QOS", "TELEMETRY_QOS", "EVENTS_QOS"]
+GAZEBO_QOS = QoSProfile(
+        reliability=ReliabilityPolicy.RELIABLE,
+        history=HistoryPolicy.KEEP_LAST,
+        depth=10,
+        durability=DurabilityPolicy.VOLATILE,
+        )
+
+__all__ = ["CONTROL_QOS", "TELEMETRY_QOS", "EVENTS_QOS", "GAZEBO_QOS"]

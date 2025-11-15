@@ -65,8 +65,8 @@ class MissionController:
         now = time.monotonic()
 
         # If the background thread already signalled completion, refresh the state.
-        if spawn_state is SpawnSyncState.QUERYING and telemetry.spawn_offset_ready_event().is_set():
-            spawn_state = telemetry.spawn_sync_state()
+        #if spawn_state is SpawnSyncState.QUERYING and telemetry.spawn_offset_ready_event().is_set():
+        #   spawn_state = telemetry.spawn_sync_state()
 
         if spawn_state is SpawnSyncState.READY:
             spawn_ready = True
