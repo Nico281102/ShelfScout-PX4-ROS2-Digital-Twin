@@ -180,6 +180,26 @@ The ROS 2 package `overrack_mission` exposes three primary entry points via `col
 5. When `inspection.enable` is true, the state machine notifies `inspection_node`, which publishes verdicts on `overrack/inspection`. Those verdicts can satisfy `require_ack`, extend hovers, or trigger fallback actions defined in the YAML.
 6. `mission_metrics` listens to both mission state and inspection streams, recording per-phase timing plus the final outcome; files are written to `data/metrics/<timestamp>/` when the mission ends.
 
+### Step Semantics and Stabilization Logic
+Each entry in a route step list is treated as an atomic navigation goal: the controller flies to the specified position/yaw, enters `HOVER`, and immediately fires any configured inspection or action hooks. There is currently no delay between entering `HOVER` and triggering the action, so a `snapshot` can occur while PX4 is still finishing the last few centimetres of translation or yaw alignment.
+
+Missions that require perfectly steady captures can encode a two-step convention at the route level:
+
+```yaml
+- name: F_arrival
+  position: [0.0, 3.5, 1.2]
+  hover_s: 1.0
+  inspect: false
+
+- name: F_photo
+  position: [0.0, 3.5, 1.2]
+  hover_s: 10.0
+  inspect: true
+  action: snapshot
+```
+
+`F_arrival` commands the transit and provides a short dwell so PX4’s attitude and position controllers can settle, while the following `F_photo` duplicates the setpoint but keeps the vehicle in a longer hover window where inspections or actions run. This split-step approach yields deterministic timing for `inspection_node` and `metrics_node` consumers and prevents race conditions where a camera trigger would otherwise fire during the final approach. Future FSM revisions may add a built-in stabilization grace period, but until then stabilization is handled explicitly in the mission’s route definition.
+
 ### Key Topics and Parameters
 | Topic | Direction | Produced by | Notes |
 | --- | --- | --- | --- |
