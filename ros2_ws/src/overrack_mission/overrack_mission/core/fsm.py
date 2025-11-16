@@ -159,10 +159,10 @@ class MissionContext:
         return self.plan.steps[self.current_index]
 
     def tolerance_xy(self) -> float:
-        return max(0.25, self.plan.cruise_speed_mps * 0.25)
+        return max(0.15, self.plan.cruise_speed_mps * 0.15)
 
     def tolerance_z(self) -> float:
-        return 0.3
+        return 0.025
 
     def advance_waypoint(self) -> bool:
         if self.current_index < len(self.plan.steps) - 1:
