@@ -35,7 +35,7 @@
 
     <!-- downward RGB camera -->
     <link name="front_camera_link">
-      <pose>0.1 0 -0.02 0 -0.35 0</pose>  
+      <pose>0.1 0 -0.02 0 0.15 0</pose>  
       <inertial>
         <mass>0.01</mass>
         <inertia>

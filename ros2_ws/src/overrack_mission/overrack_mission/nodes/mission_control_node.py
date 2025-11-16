@@ -99,7 +99,7 @@ class MissionControlNode(Node):
         )
 
         # 20 Hz keep-offboard timer (matches previous behaviour)
-        self._timer = self.create_timer(0.05, self._on_timer)
+        self._timer = self.create_timer(0.025, self._on_timer) #0.05 = 20Hz
 
     def _resolve_mission_path(self, value: str) -> Optional[pathlib.Path]:
         if not value:

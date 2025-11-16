@@ -4,7 +4,7 @@ frame_id: map
 defaults:
   altitude_m: 1.0
   hover_time_s: 2.0
-  cruise_speed_mps: 0.5
+  cruise_speed_mps: 0.25
 
 mode: precomputed
 route_file: ../routes/overrack_default.yaml
@@ -20,5 +20,5 @@ fallback:
   link_lost: ["hold:5s", "land"]
 
 avoidance: stop
-ignore_gps: true
+ignore_gps: false
 land_on_finish: true

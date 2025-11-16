@@ -1,71 +1,148 @@
 route:
   name: overrack_default
   frame_id: map
-  default_altitude_m: 1.2
+  default_altitude_m: 1
   default_hover_s: 2.0
 
   steps:
-    - name: takeoff
-      position: [0.0, 0.0, 3.0]
+    - name: spawn
+      position: [0.0, 0.0, 1]
+      hover_s: 1.0
+      inspect: false        
+
+    - name: A
+      position: [-2, 0.0, 1]
       hover_s: 2.0
       inspect: false
 
-    - name: andiamo_a_sinistra
-      position: [-1.5, 0.0, 1.2]
-      hover_s: 2.0
+
+    - name: B_arrival
+      position: [-2, -4, 1]
       inspect: false
+      hover_s: 5.0          
 
-    # Aisle sud (guarda verso nord = +y)
-    - name: south_west_corner
-      position: [-2, -3.5, 1.2]
-      yaw_deg: 90.0
+
+    - name: BC_arrival # distance of 0.8
+      position: [-0.8, -4, 1]
+      inspect: false
+      hover_s: 15.0
+
+    - name: BC_photo
+      position: [-0.8, -4, 1]
       inspect: true
       action: snapshot
 
-    - name: south_mid
-      position: [0.0, -3.5, 1.2]
-      yaw_deg: 90.0
+
+    - name: BC_arrival_down # distance of 0.8
+      position: [-0.8, -4, 0.5]
+      inspect: false
+      hover_s: 15.0
+
+    - name: BC_photo_down
+      position: [-0.8, -4, 0.5]
       inspect: true
       action: snapshot
 
-    - name: south_east_corner
-      position: [3.6, -3.5, 1.2]
-      yaw_deg: 90.0
+    - name: C_arrival_down
+      position: [0.0, -4, 0.5]
+      inspect: false
+      hover_s: 15.0
+
+    - name: C_photo_down
+      position: [0.0, -4, 0.5]
       inspect: true
       action: snapshot
+
+    - name: C_arrival
+      position: [0.0, -4, 1]
+      inspect: false
+      hover_s: 15.0
+
+    - name: C_photo
+      position: [0.0, -4, 1]
+      inspect: true
+      action: snapshot
+
+    - name: CD_arrival
+      position: [0.8, -4, 1]
+      inspect: false
+      hover_s: 15.0
+
+    - name: CD_photo
+      position: [0.8, -4, 1]
+      inspect: true
+      action: snapshot
+
+    - name: CD_arrival_down
+      position: [0.8, -4, 0.5]
+      inspect: false
+      hover_s: 15.0
+
+    - name: CD_photo_down
+      position: [0.8, -4, 0.5]
+      inspect: true
+      action: snapshot
+
+    - name: D
+      position: [2, -4, 1]
+      yaw_deg: 180
+      inspect: true
 
     # Corridoio est: risale verso nord (facoltativo guardare a -x)
-    - name: east_corridor_mid
-      position: [3.6, 0.0, 1.2]
-      yaw_deg: 180.0
+    - name: E
+      position: [2, 4, 1]
+      yaw_deg: 180
       inspect: false
 
-    # Aisle nord (guarda verso sud = -y)
-    - name: north_east_corner
-      position: [3.6, 3.5, 1.2]
-      yaw_deg: -90.0
+    - name: EF_arrival
+      position: [0.8, 3.5, 1]
+      yaw_deg: 180
+      inspect: true
+      hover_s: 15.0
+    
+    - name: EF_photo
+      position: [0.8, 3.5, 1]
+      yaw_deg: 180
       inspect: true
       action: snapshot
 
-    - name: north_mid
-      position: [0.0, 3.5, 1.2]
-      yaw_deg: -90.0
+    - name: F_arrival
+      position: [0.0, 3.5, 1]
+      yaw_deg: 180
+      inspect: true
+      hover_s: 15.0
+    
+    - name: F_photo
+      position: [0.0, 3.5, 1]
+      yaw_deg: 180
       inspect: true
       action: snapshot
 
-    - name: north_west_corner
-      position: [-3.6, 3.5, 1.2]
-      yaw_deg: -90.0
+         
+    - name: FG_arrival
+      position: [-0.8, 3.5, 1]
+      yaw_deg: 180
+      inspect: true
+      hover_s: 15.0
+    
+    - name: FG_photo
+      position: [-0.8, 3.5, 1]
+      yaw_deg: 180
       inspect: true
       action: snapshot
 
-    # Corridoio ovest: ridiscende (facoltativo guardare a +x)
-    - name: west_corridor_mid
-      position: [-3.6, 0.0, 1.2]
-      yaw_deg: 0.0
+    - name: G
+      position: [-2, 3.5, 1]
+      yaw_deg: 180
+      inspect: true
+      hover_s: 5.0
+
+    - name: A
+      position: [-2, 0.0, 1]
+      hover_s: 2.0
       inspect: false
 
-    - name: hold_end
-      position: [0.0, 0.0, 1.2]
-      yaw_deg: 0.0
+    - name: H
+      position: [0.0, 0.0, 1]
       inspect: false
+      action: land
