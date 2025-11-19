@@ -29,6 +29,7 @@ setup(
             'mission_runner = overrack_mission.nodes.mission_control_node:main',
             'inspection_node = overrack_mission.nodes.inspection_node:main',
             'mission_metrics = overrack_mission.nodes.metrics_node:main',
+            'torch_controller = overrack_mission.px4io.actuators.torch_controller:main',
         ],
     },
 )

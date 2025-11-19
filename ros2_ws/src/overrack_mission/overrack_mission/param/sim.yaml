@@ -19,3 +19,8 @@ inspection_node:
     low_light_threshold: 40.0
     suspect_variance: 12.0
     publish_period_s: 0.5
+
+torch_controller:
+  ros__parameters:
+    command_topic: /overrack/torch_enable
+    startup_on: false

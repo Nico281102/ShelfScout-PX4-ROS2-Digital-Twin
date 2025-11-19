@@ -1,7 +1,7 @@
 <sdf version='1.5'>
   <model name='iris_opt_flow'>
     <include>
-      <uri>model://iris</uri>
+      <uri>model://iris</uri> <!-- eredito mavlink plugin -->
     </include>
 
     <!--px4flow camera-->
@@ -25,7 +25,7 @@
     <!--lidar-->
     <include>
       <uri>model://lidar</uri>
-      <pose>0 0 -0.05 0 0 0</pose>
+      <pose>0 0 0.01 0 0 0</pose>
     </include>
 
     <joint name="lidar_joint" type="fixed">
@@ -79,6 +79,56 @@
       <parent>iris::base_link</parent>
       <child>front_camera_link</child>
     </joint>
+
+    <!-- Torch spotlight mounted near the front camera -->
+    <link name="torch_link">
+      <visual name="torch_visual">
+        <geometry>
+          <box><size>0.001 0.001 0.001</size></box>
+        </geometry>
+      </visual>
+      <pose>0.12 0 -0.04 0 0.15 0</pose>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>1e-5</ixx>
+          <iyy>1e-5</iyy>
+          <izz>1e-5</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <light name="torch_light" type="spot">
+        <pose>0 0 0 0 0 0</pose>
+        <diffuse>1 0.95 0.8 1</diffuse>
+        <specular>0.2 0.2 0.2 1</specular>
+        <attenuation>
+          <range>12</range>
+          <constant>0.8</constant>
+          <linear>0.01</linear>
+          <quadratic>0.001</quadratic>
+        </attenuation>
+        <is_on>false</is_on> 
+        <direction>1 0 0</direction>
+        <spot>
+          <inner_angle>0.6</inner_angle>
+          <outer_angle>1.2</outer_angle>
+          <falloff>0.7</falloff>
+        </spot>
+        <cast_shadows>false</cast_shadows>
+      </light>
+    </link>
+
+    <joint name="torch_joint" type="fixed">
+      <parent>iris::base_link</parent>
+      <child>torch_link</child>
+    </joint>
+
+    <plugin name="torch_light_plugin" filename="libtorch_light_plugin.so">
+      <light_name>torch_light</light_name>
+      <topic>/overrack/torch_enable</topic>
+    </plugin>
 
   </model>
 </sdf>

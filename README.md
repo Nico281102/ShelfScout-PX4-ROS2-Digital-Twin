@@ -72,6 +72,7 @@ Mission content and simulator defaults live in `ros2_ws/src/overrack_mission/ove
 - `run_ros2_system.ros__parameters.world_file` — Gazebo world used by PX4 SITL.
 - `run_ros2_system.ros__parameters.agent_cmd` — command line passed to the Micro XRCE-DDS agent.
 - `mission_runner.ros__parameters.mission_file` — mission YAML parsed by the ROS node (see `docs/mission_v1.md`).
+- `torch_controller.ros__parameters.*` — topic `overrack/torch_enable` bridged to inspection events; the Gazebo model plugin listens on the same topic.
 Change those paths once in the YAML and re-run `scripts/run_ros2_system.sh`; no CLI overrides or env tweaks are necessary anymore.
 
 > **When to rebuild `ros2_ws`**
@@ -106,6 +107,11 @@ The script performs the following:
 - Streams PX4 output to `data/logs/px4_sitl_default.out` for later inspection.
 
 If you ever need to kill everything quickly, `scripts/stop_manual_like.sh` still terminates PX4, Gazebo, the agent, and the mission runner.
+
+### Torch light plugin (Gazebo Classic)
+- Build the C++ plugin once with `colcon build --symlink-install --packages-select overrack_light_plugin overrack_mission` and re-source `ros2_ws/install/setup.bash`.
+- Ensure `GAZEBO_PLUGIN_PATH` includes `ros2_ws/install/lib` (already set in `scripts/.env.example`); Gazebo will load `libtorch_light_plugin.so` from the SDF.
+- The plugin listens to `std_msgs/Bool` on `/overrack/torch_enable`; `torch_controller` bridges `OVERrack/inspection` events (`LOW_LIGHT`/`OK`) to that topic so the light mounted on the drone can be toggled at runtime.
 
 ## Mission Runner and ROS 2 Nodes
 - **Mission Runner (`nodes/mission_control_node.py`)**: loads the YAML plan supplied via `mission_file`, instantiates the ROS-free `MissionController`, and publishes Offboard setpoints at 20 Hz once PX4 reports readiness while co-spinning the inspection node.
@@ -326,6 +332,115 @@ If not, the controller is probably still waiting for Gazebo or for PX4 odometry.
   ```
 
   `ReturnHomeState` will then command a hover above that ENU position at the mission altitude.
+
+### Light Plugin Development (Troubleshooting Notes)
+
+During development of the drone-mounted torch light, several approaches were tested before reaching the final, reliable solution.  
+Here is a short summary of the process.
+
+#### 1. Initial Attempts: Local Rendering Tricks
+```c++
+// OLD APPROACH (client-side only)
+if (on)
+{
+    light_->SetDiffuseColor(ignition::math::Color(1, 0.95, 0.8, 1));
+    light_->SetSpecularColor(ignition::math::Color(0.3, 0.3, 0.3, 1));
+    light_->SetAttenuation(1.0, 0.1, 0.01);
+}
+else
+{
+    light_->SetDiffuseColor(ignition::math::Color(0, 0, 0, 1));
+    light_->SetSpecularColor(ignition::math::Color(0, 0, 0, 1));
+    light_->SetAttenuation(0.0, 1.0, 1.0);
+    light_->SetRange(0.01);
+    light_->SetVisible(false);
+    light_->SetCastShadows(false);
+}
+```
+
+The first implementation tried to “turn off” the light by modifying client-side rendering properties:
+
+- setting the diffuse/specular color to black  
+- tweaking attenuation values  
+- reducing the range  
+- hiding the light with `SetVisible(false)`
+
+Although the plugin correctly reacted to ROS messages, Gazebo Classic continued to render a bright glow on nearby surfaces.  
+This happened because these methods only update the *client-side OGRE rendering*, while the *lights themselves are managed on the server side*.  
+As a result, the visual appearance never fully matched the intended ON/OFF state.
+
+#### 2. Observed Issue
+Even when logs showed the plugin entering the OFF branch, the world still contained an active spotlight.  
+The drone appeared to be emitting light even though the rendering parameters were set to zero.  
+This confirmed that we were modifying the “viewer”, not the actual light entity in the world.
+
+#### 3. Final Working Approach: Server-Side Light Control
+The definitive solution was to stop manipulating rendering properties directly and instead use **Gazebo’s official light control interface**: /world/<world_name>/light/modify
+```c++
+// NEW APPROACH (client + server)
+
+/* 1) Client-side update (OGRE) */
+if (on)
+{
+    light_->SetDiffuseColor(ignition::math::Color(1, 0.95, 0.8, 1));
+    light_->SetSpecularColor(ignition::math::Color(0.3, 0.3, 0.3, 1));
+    light_->SetAttenuation(1.0, 0.1, 0.01);
+    light_->SetRange(20.0);
+    light_->SetVisible(true);
+    light_->SetCastShadows(true);
+}
+else
+{
+    light_->SetDiffuseColor(ignition::math::Color(0, 0, 0, 1));
+    light_->SetSpecularColor(ignition::math::Color(0, 0, 0, 1));
+    light_->SetAttenuation(0.0, 1.0, 1.0);
+    light_->SetRange(0.01);
+    light_->SetVisible(false);
+    light_->SetCastShadows(false);
+}
+
+/* 2) Server-side authoritative update */
+msgs::Light msg;
+msg.set_name(scoped_light_name_);
+msg.set_cast_shadows(on);
+msg.set_range(on ? 20.0 : 0.01);
+
+auto *diff = msg.mutable_diffuse();
+if (on)
+{
+    diff->set_r(1.0); diff->set_g(0.95); diff->set_b(0.8); diff->set_a(1.0);
+}
+else
+{
+    diff->set_r(0.0); diff->set_g(0.0); diff->set_b(0.0); diff->set_a(1.0);
+}
+
+light_pub_->Publish(msg);
+```
+
+
+Through a `gazebo::msgs::Light` message, the plugin now sends authoritative updates to the world state.  
+This method modifies the real light entity, not just the local viewport.
+
+When switching **OFF**, the plugin sends:
+
+- a server-side light update with the scoped name  
+- `range` set to a near-zero value  
+- shadow casting disabled  
+- visibility disabled  
+
+When switching **ON**, the plugin restores the intended spotlight parameters (range, attenuation, diffuse color, shadows).
+
+Because the update is applied by the server, the renderer and the physics world stay fully synchronized.
+
+#### 4. Takeaway
+Client-side modifications (OGRE color, attenuation hacks, visibility flags) are not sufficient to reliably disable a light in Gazebo Classic.
+
+Using the official  
+`/world/<world>/light/modify`  
+interface was the key to achieving consistent ON/OFF behavior for the drone's torch light in PX4 + ROS2 simulation.
+
+
 
 
 ## How AI was used in this project

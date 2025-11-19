@@ -55,6 +55,14 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[params_file],
     )
 
+    torch_controller = Node(
+        package="overrack_mission",
+        executable="torch_controller",
+        name="torch_controller",
+        output="screen",
+        parameters=[params_file],
+    )
+
     return LaunchDescription(
-        [declare_mission, declare_params, mission_node, inspection_node, metrics_node]
+        [declare_mission, declare_params, mission_node, inspection_node, metrics_node, torch_controller]
     )
