@@ -30,6 +30,14 @@ def generate_launch_description() -> LaunchDescription:
         description="YAML file with mission_runner/inspection_node parameters",
     )
 
+    px4_param_setter = Node(
+        package="overrack_mission",
+        executable="px4_param_setter",
+        name="px4_param_setter",
+        output="screen",
+        parameters=[params_file],
+    )
+
     mission_node = Node(
         package="overrack_mission",
         executable="mission_runner",
@@ -64,5 +72,13 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     return LaunchDescription(
-        [declare_mission, declare_params, mission_node, inspection_node, metrics_node, torch_controller]
+        [
+            declare_mission,
+            declare_params,
+            px4_param_setter,
+            mission_node,
+            inspection_node,
+            metrics_node,
+            torch_controller,
+        ]
     )

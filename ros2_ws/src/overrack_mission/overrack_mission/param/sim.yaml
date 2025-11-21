@@ -24,3 +24,11 @@ torch_controller:
   ros__parameters:
     command_topic: /overrack/torch_enable
     startup_on: false
+
+px4_param_setter:
+  ros__parameters:
+    # usa MAVLink UDP server standard di PX4 SITL
+    mavlink_url: udp://:14540
+    px4_params:
+      SIM_BAT_DRAIN: 60   # secondi per scaricare del tutto (float) 60s def
+      SIM_BAT_MIN_PCT: 5.0    # percentuale minima (default 50)

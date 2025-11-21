@@ -143,6 +143,15 @@ class Telemetry:
     def _on_battery_status(self, msg: BatteryStatus) -> None:
         self._battery_status = msg
 
+    def log_battery(self, where: str = "") -> None:
+        s = self._battery_status
+        if s:
+            self._node.get_logger().info(
+                f"[Battery @ {where}] {s.remaining*100:.1f}%, warning={s.warning}"
+            )
+
+
+
     def _on_inspection_event(self, msg: String) -> None:
         payload = (msg.data or "").strip().upper()
         if payload == "LOW_LIGHT":
@@ -238,7 +247,7 @@ class Telemetry:
 
     def battery_warning(self) -> bool:
         s = self._battery_status
-        return bool(s and s.warning >= BatteryStatus.BATTERY_WARNING_WARNING)
+        return bool(s and s.warning >= BatteryStatus.BATTERY_WARNING_LOW)
 
     def battery_critical(self) -> bool:
         s = self._battery_status

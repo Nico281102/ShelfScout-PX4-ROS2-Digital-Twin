@@ -332,10 +332,11 @@ echo "[run_ros2_system] PX4 RTPS bridge ready; launching mission runner"
 MISSION_LOG="$LOG_DIR/mission_runner.out"
 : > "$MISSION_LOG"
 
-ros2 run overrack_mission mission_runner --ros-args --params-file "$PARAM_FILE_PATH" \
+ros2 launch overrack_mission mission.sim.launch.py \
+  params_file:="$PARAM_FILE_PATH" mission_file:="$MISSION_PATH" \
   >"$MISSION_LOG" 2>&1 &
 MISSION_PID=$!
-echo "[run_ros2_system] Mission runner started (logs -> $MISSION_LOG)"
+echo "[run_ros2_system] Mission launch started (logs -> $MISSION_LOG)"
 
 wait_gz_dead() {
   local tries=15

@@ -371,6 +371,12 @@ class TransitState(State):
                     ctx.last_hover_duration(),
                 )
             )
+            s = ctx.telemetry.battery_status()
+            if s:
+                ctx.logger.info(
+                    f"[Battery] At waypoint {ctx.current_index+1}: "
+                    f"{s.remaining*100:.1f}% remaining, warning={s.warning}"
+                )
             ctx.log_frame_debug("waypoint")
             if step.inspect:
                 return InspectState

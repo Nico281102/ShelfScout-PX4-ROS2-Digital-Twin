@@ -21,7 +21,6 @@ from ..core import (
 from ..core.fsm import MissionRuntime
 from ..px4io import SetpointPublisher, Telemetry
 from ..px4io.qos import EVENTS_QOS
-from .inspection_node import InspectionNode
 
 
 class RosMissionRuntime(MissionRuntime):
@@ -144,22 +143,11 @@ def main(args: Optional[Sequence[str]] = None) -> None:
     rclpy.init(args=args)
 
     runner: Optional[MissionControlNode] = None
-    inspection: Optional[InspectionNode] = None
     executor: Optional[MultiThreadedExecutor] = None
     try:
         runner = MissionControlNode()
         executor = MultiThreadedExecutor()
         executor.add_node(runner)
-
-        runner.get_logger().info("Starting inspection node")
-        inspection = InspectionNode()
-        executor.add_node(inspection)
-
-        image_topic = inspection.get_parameter("image_topic").get_parameter_value().string_value
-        runner.get_logger().info(
-            "Inspection node attached (image_topic=%s)"
-            % image_topic
-        )
 
         executor.spin()
     except Exception as exc:  # noqa: BLE001
@@ -175,14 +163,7 @@ def main(args: Optional[Sequence[str]] = None) -> None:
                     executor.remove_node(runner)
                 except Exception:  # noqa: BLE001
                     pass
-            if inspection is not None:
-                try:
-                    executor.remove_node(inspection)
-                except Exception:  # noqa: BLE001
-                    pass
             executor.shutdown()
-        if inspection is not None:
-            inspection.destroy_node()
         if runner is not None:
             runner.destroy_node()
         try:
