@@ -21,4 +21,4 @@ fallback:
 
 avoidance: stop
 ignore_gps: false
-land_on_finish: true
+land_on_finish: false

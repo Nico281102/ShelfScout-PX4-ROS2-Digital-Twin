@@ -27,6 +27,7 @@ class MissionController:
         enu_bounds: Optional[EnuBounds] = None,
         cruise_speed_limits: Optional[Tuple[float, float]] = None,
         debug_frames: bool = False,
+        return_home_safe_z: Optional[float] = None,
     ) -> None:
         self._runtime = runtime
         path = pathlib.Path(mission_path)
@@ -41,7 +42,12 @@ class MissionController:
         if enu_bounds is not None:
             validate_waypoints_in_bounds(self._plan, enu_bounds)
 
-        self._context = MissionContext(runtime, self._plan, debug_frames=debug_frames)
+        self._context = MissionContext(
+            runtime,
+            self._plan,
+            debug_frames=debug_frames,
+            return_home_safe_z=return_home_safe_z,
+        )
         self._state_machine = MissionStateMachine(self._context)
         self._spawn_sync_ready = False
         self._last_wait_log = 0.0

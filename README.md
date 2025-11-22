@@ -72,7 +72,7 @@ Mission content and simulator defaults live in `ros2_ws/src/overrack_mission/ove
 - `run_ros2_system.ros__parameters.world_file` — Gazebo world used by PX4 SITL.
 - `run_ros2_system.ros__parameters.agent_cmd` — command line passed to the Micro XRCE-DDS agent.
 - `mission_runner.ros__parameters.mission_file` — mission YAML parsed by the ROS node (see `docs/mission_v1.md`).
-- `torch_controller.ros__parameters.*` — topic `overrack/torch_enable` bridged to inspection events; the Gazebo model plugin listens on the same topic.
+- `torch_controller.ros__parameters.*` — topic `overrack/torch_enable` bridged to inspection events; includes `startup_on` and `min_on_seconds` (minimum ON dwell after `LOW_LIGHT` before honoring `OK`).
 Change those paths once in the YAML and re-run `scripts/run_ros2_system.sh`; no CLI overrides or env tweaks are necessary anymore.
 
 > **When to rebuild `ros2_ws`**
@@ -127,6 +127,7 @@ The ROS 2 package is registered through `ros2_ws/src/overrack_mission/setup.py`,
 - `world_bounds.{x,y,z}` (meters in NED): rectangular safety limits mirrored into ENU for plan validation; every waypoint outside these numbers causes a load-time failure, and every PX4 setpoint is clamped to the same box after the spawn-offset correction.
 - `cruise_speed_limits`: `[min, max]` guard rails checked against `cruise_speed_mps`.
 - `debug_frames`: when `true`, each waypoint prints one `FrameDebug[...]` line with ENU target, NED target, applied offset, current PX4 pose, and yaw.
+- `return_home_safe_z`: (meters ENU) safe altitude used by the return-home fallback to climb above indoor obstacles before translating home.
 
 The inspection node keeps its `image_topic`, `low_light_threshold`, and QoS wired to the shared `EVENTS_QOS`. An archived RTAB-Map launch now lives under `launch/experimental/` so it stays available without cluttering the default mission launch.
 
@@ -136,9 +137,73 @@ The inspection node keeps its `image_topic`, `low_light_threshold`, and QoS wire
 - `data/images/` holds camera captures for post-mission analysis or barcode decoding.
 - `scripts/run_vision.py` and `scripts/run_visual_demo.py` provide optional visualisation/analytics entry points.
 
+## FSM
+
+> **Notes:**  
+> - Fallback triggers (`battery_warning`, `battery_critical`, `link_lost`, `low_light`) are evaluated **globally every tick** and may pre-empt *any* state. The arrows below show the common sources, but pre-emption is not limited to them.  
+> - `increase_hover` does not change state; it just extends the hover window.  
+> - FSM ticks start only after `MissionController._check_spawn_sync_ready()` sees spawn offset + EKF pose.
+
+```mermaid
+stateDiagram-v2
+    %% -------------------------
+    %% Initialization
+    %% -------------------------
+    [*] --> BootstrapState
+    BootstrapState --> OffboardInitState : after 20 bootstrap setpoints
+
+    OffboardInitState --> ArmingState : OFFBOARD active (ack)
+    ArmingState --> TransitState : vehicle armed\n(after preflight checks)
+
+    %% -------------------------
+    %% Mission Execution
+    %% -------------------------
+    TransitState --> HoverState : waypoint reached\n(inspect=false)
+    TransitState --> InspectState : waypoint reached\n(inspect=true)
+
+    HoverState --> TransitState : advance waypoint
+    HoverState --> HoldState : mission complete\n(if land_on_finish →\nqueue return_home → land)
+
+    InspectState --> TransitState : inspection result or timeout
+    InspectState --> HoldState : mission complete\n(if land_on_finish → queue land)
+
+    %% -------------------------
+    %% Global Fallbacks (evaluated every tick)
+    %% -------------------------
+    state "Fallbacks\n(global pre-emption)" as FB
+
+    %% Mapping fallback actions to states
+    TransitState --> ReturnHomeState : fallback return_home
+    HoverState --> ReturnHomeState : fallback return_home
+    InspectState --> ReturnHomeState : fallback return_home
+    HoldState --> ReturnHomeState : fallback return_home
+
+    TransitState --> EmergencyLandState : fallback land
+    HoverState --> EmergencyLandState : fallback land
+    InspectState --> EmergencyLandState : fallback land
+    HoldState --> EmergencyLandState : fallback land
+
+    TransitState --> FallbackHoldState : fallback hold
+    HoverState --> FallbackHoldState : fallback hold
+    InspectState --> FallbackHoldState : fallback hold
+    HoldState --> FallbackHoldState : fallback hold
+
+    %% -------------------------
+    %% Fallback subgraph
+    %% -------------------------
+    ReturnHomeState --> HoldState : home reached
+    FallbackHoldState --> HoldState : hold timer elapsed
+
+    %% EmergencyLand: does NOT terminate the FSM
+    EmergencyLandState --> EmergencyLandState : VEHICLE_CMD_NAV_LAND sent\n(continues publishing setpoints)
+```
+
+
+
 ## Troubleshooting
 - **Offboard rejected**: confirm at least 20 trajectory setpoints are streamed before `VehicleCommand.DO_SET_MODE`, and verify `vehicle_status.nav_state` plus pre-flight checks via `px4io/telemetry.py` helpers.
 - **Unexpected drift / “drone leaves the room”**: enable `debug_frames:=true` to log a single ENU/NED/offset/local snapshot per waypoint and double-check your `world_bounds`.
+- **PX4 battery failsafe overrides**: if you want the FSM to manage battery fallbacks, set PX4 `COM_LOW_BAT_ACT` to `Warning` (or raise thresholds) so PX4 does not auto-RTL/land; see `px4_param_setter` in `sim.yaml` for scripting this.
 - **No `/fmu/out/*` topics**: check `data/logs/micro_xrce_agent.out` for agent crashes, ensure the PX4 branch matches the agent binary, and confirm UDP ports 2019/2020 are free.
 - **Fallback not firing**: ensure triggers in the mission YAML match published event names (e.g., `battery_warning`, `low_light`) and monitor `overrack/inspection` output.
 - **Gazebo refuses to start**: rebuild PX4 (`make px4_sitl_default`), try `--headless`, and verify that `GAZEBO_MODEL_PATH` contains both PX4 and OverRack models.
@@ -440,8 +505,44 @@ Using the official
 `/world/<world>/light/modify`  
 interface was the key to achieving consistent ON/OFF behavior for the drone's torch light in PX4 + ROS2 simulation.
 
+## Troubleshooting – Transparent Roof Without Sunlight
+Gazebo Classic cannot make a roof both visually transparent and sunlight-proof via material alone. The renderer applies the material only to the visual mesh, while the directional sun lights the world through the collision mesh, so a thin or transparent roof still leaks sun.
 
+**What we saw**
+- Indoor scene was unrealistically bright.
+- LOW_LIGHT trigger was unreliable because ambient sun dominated.
+- Neon lights had little visible effect.
 
+**Fix**
+- Remove the global sun entirely:
+  ```xml
+  <!-- Sun disabled: its light interferes with indoor lighting -->
+  <!--
+  <include>
+    <uri>model://sun</uri>
+  </include>
+  -->
+  ```
+- Keep the transparent roof visual for top-down debugging:
+  ```xml
+  <visual name="vis">
+    <geometry><box><size>12 10 0.1</size></box></geometry>
+    <material>
+      <script>
+        <uri>file://../models/materials/scripts/custom.material</uri>
+        <name>Custom/AlphaBlend</name>
+      </script>
+      <ambient>1 1 1 0.1</ambient>
+      <diffuse>1 1 1 0.1</diffuse>
+    </material>
+  </visual>
+  ```
+- Light the room with indoor spotlights (neons) only.
+
+**Result**
+- Roof stays visually transparent for debugging (we can observe what is happening inside the room), but no external sun leaks in.
+- Illumination comes solely from controlled indoor lights and the torch.
+- LOW_LIGHT behaves deterministically without ambient drift.
 
 ## How AI was used in this project
 - The markdow is almost fully IA written, of course is carefully checked by the developer, but checking is faster than starting writing from zero.

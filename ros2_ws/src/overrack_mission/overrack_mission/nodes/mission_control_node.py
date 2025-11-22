@@ -67,6 +67,13 @@ class MissionControlNode(Node):
         ned_bounds = self._load_world_bounds()
         cruise_limits = self._load_cruise_speed_limits()
         debug_frames = bool(self.declare_parameter("debug_frames", False).value)
+        safe_z_param = self.declare_parameter("return_home_safe_z", None)
+        return_home_safe_z = safe_z_param.value
+        if return_home_safe_z is not None:
+            try:
+                return_home_safe_z = float(return_home_safe_z)
+            except (TypeError, ValueError):
+                return_home_safe_z = None
 
         gazebo_model = (
             self.declare_parameter("gazebo_model_name", "iris_opt_flow").get_parameter_value().string_value
@@ -82,6 +89,7 @@ class MissionControlNode(Node):
                 enu_bounds=enu_bounds_from_ned(ned_bounds),
                 cruise_speed_limits=cruise_limits,
                 debug_frames=debug_frames,
+                return_home_safe_z=return_home_safe_z,
             )
         except MissionPlanError as exc:
             raise RuntimeError(f"Failed to load mission: {exc}") from exc

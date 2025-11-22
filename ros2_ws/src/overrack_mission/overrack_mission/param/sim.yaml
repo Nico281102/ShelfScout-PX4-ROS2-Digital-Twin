@@ -1,22 +1,25 @@
 # Defaults consumed by scripts/run_ros2_system.sh
 run_ros2_system:
   ros__parameters:
+    #world_file: worlds/overrack_indoor_nolight.world
     world_file: worlds/overrack_indoor.world
+    #world_file: worlds/nolight.world
     agent_cmd: MicroXRCEAgent udp4 -p 8888 -v 6
 
 mission_runner:
   ros__parameters:
     mission_file: config/mission_precomputed.yaml
     gazebo_model_name: iris_opt_flow
-    world_bounds.x: [-5.0, 5.0]
+    world_bounds.x: [-5.0, 5.0] 
     world_bounds.y: [-4.0, 4.0]
     world_bounds.z: [-3.0, -0.1]
     cruise_speed_limits: [0.2, 2.0]
     debug_frames: true
+    return_home_safe_z: 2.5
 inspection_node:
   ros__parameters:
     image_topic: /overrack/iris/front_camera/image_raw
-    low_light_threshold: 40.0
+    low_light_threshold: 90.0
     suspect_variance: 12.0
     publish_period_s: 0.5
 
@@ -24,11 +27,14 @@ torch_controller:
   ros__parameters:
     command_topic: /overrack/torch_enable
     startup_on: false
+    min_on_seconds: 10.0
 
 px4_param_setter:
   ros__parameters:
     # usa MAVLink UDP server standard di PX4 SITL
     mavlink_url: udp://:14540
     px4_params:
-      SIM_BAT_DRAIN: 60   # secondi per scaricare del tutto (float) 60s def
-      SIM_BAT_MIN_PCT: 5.0    # percentuale minima (default 50)
+      SIM_BAT_DRAIN: 60.0   # secondi per scaricare del tutto (float) 60s def
+      SIM_BAT_MIN_PCT: 0.0    # percentuale minima (default 50)
+      BAT1_N_CELLS: 1
+      COM_LOW_BAT_ACT: 0    # 0: none, 2: return to launch, 3: land asap
