@@ -56,13 +56,27 @@
       <shadows>true</shadows>
     </scene>
 
-    <gui fullscreen="0">
+  <!--<gui fullscreen="0">
       <camera name="overrack_default">
-        <pose>2.0 -7.0 4.0 0.6 0.0 1.57</pose>
+         <pose>0 0.05 0.3 0.05 0 0</pose> // <pose>2.0 -7.0 4.0 0.6 0.0 1.57</pose>
         <view_controller>orbit</view_controller>
         <track_visual>iris_opt_flow::base_link</track_visual>
       </camera>
-    </gui>
+    </gui>-->
+<gui fullscreen="0">
+  <camera name="overrack_default">
+    <!-- Posizione iniziale della camera nel mondo -->
+    <pose>0 0 1.5 0 0 0</pose>
+
+    <!-- Camera in modalità FPS -->
+    <view_controller>orbit</view_controller>
+
+    <!-- Segui il drone -->
+    <track_visual>iris_opt_flow::base_link</track_visual>
+  </camera>
+</gui>
+
+
 
     <physics type="ode">
       <max_step_size>0.004</max_step_size>
@@ -70,10 +84,10 @@
       <real_time_factor>1.0</real_time_factor>
     </physics>
 
-    <!-- Sun and ground -->
+    <!-- Sun and ground , the sun is disabled becouse otherwise it's light would interfere with indoor lighting, biasing the "sensor"
     <include>
       <uri>model://sun</uri>
-    </include>
+    </include>  --> 
     <include>
       <uri>model://ground_plane</uri>
     </include>
@@ -82,6 +96,33 @@
     <model name="room">
       <static>true</static>
       <pose>0 0 0 0 0 0</pose>
+      <!-- Roof -->
+      <link name="roof">
+        <pose>0 0 3.0 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box>
+              <size>12 10 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box>
+              <size>12 10 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://../models/materials/scripts/custom.material</uri>
+              <name>Custom/AlphaBlend</name>
+            </script>
+            <ambient>1 1 1 0.1</ambient>
+            <diffuse>1 1 1 0.1</diffuse>
+          </material>
+        </visual>
+      </link>
+
       <!-- Four walls: 12m x 10m room, 3m tall -->
       <link name="wall_north">
         <pose>0 5 1.5 0 0 0</pose>
@@ -97,6 +138,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -114,6 +156,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -131,6 +174,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -148,6 +192,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -280,6 +325,113 @@
 <!-- helper: un marker visual-only -->
 <!-- usa: <wp_marker name="wp_spawn_alt" x="0.0" y="0.0" z="1.0" yaw="0.0"/> -->
 <!-- (SDF non supporta macro: duplico il blocco per ogni waypoint) -->
+<!-- ======================== -->
+<!--      CEILING NEON LIGHTS -->
+<!-- ======================== -->
+
+<!-- Neon Row 1 (center row) -->
+<light type="spot" name="neon_row1_1">
+  <pose>-2.0 4 2.9 -0.50 -0.40 0</pose>
+  <diffuse>0.5 0.5 0.5 1</diffuse>
+  <specular>0.2 0.2 0.2 1</specular>
+  <attenuation>
+    <range>25</range>
+    <constant>0.5</constant>
+    <linear>0.02</linear>
+    <quadratic>0.005</quadratic>
+  </attenuation>
+  <spot>
+    <inner_angle>0.6</inner_angle>
+    <outer_angle>1.0</outer_angle>
+    <falloff>0.3</falloff>
+  </spot>
+</light>
+
+<light type="spot" name="neon_row1_2">
+  <pose>0 4 2.9 -0.80 0 0</pose>
+  <diffuse>0.5 0.5 0.5 1</diffuse>
+  <specular>0.2 0.2 0.2 1</specular>
+  <attenuation>
+    <range>25</range>
+    <constant>0.5</constant>
+    <linear>0.02</linear>
+    <quadratic>0.005</quadratic>
+  </attenuation>
+  <spot>
+    <inner_angle>0.6</inner_angle>
+    <outer_angle>1.0</outer_angle>
+    <falloff>0.3</falloff>
+  </spot>
+</light>
+
+<light type="spot" name="neon_row1_3">
+  <pose>2 4 2.9 -0.50 0.40 0</pose>
+  <diffuse>0.5 0.5 0.5 1</diffuse>
+  <specular>0.2 0.2 0.2 1</specular>
+  <attenuation>
+    <range>25</range>
+    <constant>0.5</constant>
+    <linear>0.02</linear>
+    <quadratic>0.005</quadratic>
+  </attenuation>
+  <spot>
+    <inner_angle>0.6</inner_angle>
+    <outer_angle>1.0</outer_angle>
+    <falloff>0.3</falloff>
+  </spot>
+</light>
+
+<!-- Neon Row 2 (above rack A/B aisles) -->
+<light type="spot" name="neon_row2_1">
+  <pose>-2 -4 2.9 0.50 -0.40 0</pose>
+  <diffuse>0.5 0.5 0.5 1</diffuse>
+  <specular>0.2 0.2 0.2 1</specular>
+  <attenuation>
+    <range>25</range>
+    <constant>0.5</constant>
+    <linear>0.02</linear>
+    <quadratic>0.005</quadratic>
+  </attenuation>
+  <spot>
+    <inner_angle>0.6</inner_angle>
+    <outer_angle>1.0</outer_angle>
+    <falloff>0.3</falloff>
+  </spot>
+</light>
+
+<light type="spot" name="neon_row2_2">
+  <pose>0 -4 2.9 0.80 0 0</pose>
+  <diffuse>0.5 0.5 0.5 1</diffuse>
+  <specular>0.2 0.2 0.2 1</specular>
+  <attenuation>
+    <range>25</range>
+    <constant>0.5</constant>
+    <linear>0.02</linear>
+    <quadratic>0.005</quadratic>
+  </attenuation>
+  <spot>
+    <inner_angle>0.6</inner_angle>
+    <outer_angle>1.0</outer_angle>
+    <falloff>0.3</falloff>
+  </spot>
+</light>
+
+<light type="spot" name="neon_row2_3">
+  <pose>2 -4 2.9 0.50 0.40 0</pose>
+  <diffuse>0.5 0.5 0.5 1</diffuse>
+  <specular>0.2 0.2 0.2 1</specular>
+  <attenuation>
+    <range>25</range>
+    <constant>0.5</constant>
+    <linear>0.02</linear>
+    <quadratic>0.005</quadratic>
+  </attenuation>
+  <spot>
+    <inner_angle>0.6</inner_angle>
+    <outer_angle>1.0</outer_angle>
+    <falloff>0.3</falloff>
+  </spot>
+</light>
 
 <!-- spawn (floor) -->
 <model name="wp_spawn_floor">
@@ -291,166 +443,6 @@
       <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
     </visual>
   </link>
-</model>
-
-<!-- spawn (floating at mission altitude 1 m) -->
-<model name="wp_spawn_alt">
-  <static>true</static>
-  <pose>0.0 0.0 1 0 0 0</pose>
-  <link name="link">
-    <visual name="vis">
-      <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-      <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
-    </visual>
-  </link>
-</model>
-
-<!-- A -->
-<model name="wp_A_floor"><static>true</static><pose>-2 0 0 0 0 0</pose>
-  <link name="link"><visual name="vis">
-    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.6 1 1</ambient><diffuse>0.2 0.6 1 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_A_alt"><static>true</static><pose>-2 0 1 0 0 0</pose>
-  <link name="link"><visual name="vis">
-    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.6 1 1</ambient><diffuse>0.2 0.6 1 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- B_arrival -->
-<model name="wp_B_arrival_floor"><static>true</static><pose>-2 -3.5 0 0 0 0</pose>
-  <link name="link"><visual name="vis">
-    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>1 0.6 0.2 1</ambient><diffuse>1 0.6 0.2 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_B_arrival_alt"><static>true</static><pose>-2 -3.5 1 0 0 0</pose>
-  <link name="link"><visual name="vis">
-    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>1 0.6 0.2 1</ambient><diffuse>1 0.6 0.2 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- BC (usato anche per *_photo) -->
-<model name="wp_BC_floor"><static>true</static><pose>-0.8 -3.5 0 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>1 0 0.4 1</ambient><diffuse>1 0 0.4 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_BC_alt"><static>true</static><pose>-0.8 -3.5 1 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>1 0 0.4 1</ambient><diffuse>1 0 0.4 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- C -->
-<model name="wp_C_floor"><static>true</static><pose>0 -3.5 0 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.9 0.9 0.2 1</ambient><diffuse>0.9 0.9 0.2 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_C_alt"><static>true</static><pose>0 -3.5 1 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.9 0.9 0.2 1</ambient><diffuse>0.9 0.9 0.2 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- CD -->
-<model name="wp_CD_floor"><static>true</static><pose>0.8 -3.5 0 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.6 0.2 1 1</ambient><diffuse>0.6 0.2 1 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_CD_alt"><static>true</static><pose>0.8 -3.5 1 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.6 0.2 1 1</ambient><diffuse>0.6 0.2 1 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- D (yaw 180° se vuoi indicarlo con una freccia, ma il disco non ha verso) -->
-<model name="wp_D_floor"><static>true</static><pose>2 -3.5 0 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 1 0.6 1</ambient><diffuse>0.2 1 0.6 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_D_alt"><static>true</static><pose>2 -3.5 1 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 1 0.6 1</ambient><diffuse>0.2 1 0.6 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- E -->
-<model name="wp_E_floor"><static>true</static><pose>2 3.5 0 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.8 0.8 1</ambient><diffuse>0.2 0.8 0.8 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_E_alt"><static>true</static><pose>2 3.5 1 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.8 0.8 1</ambient><diffuse>0.2 0.8 0.8 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- EF -->
-<model name="wp_EF_floor"><static>true</static><pose>0.8 3.5 0 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.8 0.2 0.8 1</ambient><diffuse>0.8 0.2 0.8 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_EF_alt"><static>true</static><pose>0.8 3.5 1 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.8 0.2 0.8 1</ambient><diffuse>0.8 0.2 0.8 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- F -->
-<model name="wp_F_floor"><static>true</static><pose>0 3.5 0 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.8 0.8 0.2 1</ambient><diffuse>0.8 0.8 0.2 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_F_alt"><static>true</static><pose>0 3.5 1 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.8 0.8 0.2 1</ambient><diffuse>0.8 0.8 0.2 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- FG -->
-<model name="wp_FG_floor"><static>true</static><pose>-0.8 3.5 0 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_FG_alt"><static>true</static><pose>-0.8 3.5 1 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- G -->
-<model name="wp_G_floor"><static>true</static><pose>-2 3.5 0 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.2 0.9 1</ambient><diffuse>0.2 0.2 0.9 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_G_alt"><static>true</static><pose>-2 3.5 1 0 0 3.1415926536</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.2 0.9 1</ambient><diffuse>0.2 0.2 0.9 1</diffuse></material>
-  </visual></link>
-</model>
-
-<!-- H -->
-<model name="wp_H_floor"><static>true</static><pose>0 0 0 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
-  </visual></link>
-</model>
-<model name="wp_H_alt"><static>true</static><pose>0 0 1 0 0 0</pose>
-  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
-    <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
-  </visual></link>
 </model>
 
   </world>
