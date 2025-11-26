@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Final, Optional, Protocol, Sequence, Type
+from typing import Deque, Final, Optional, Protocol, Sequence
 
 from .plan import FallbackAction, MissionPlan, MissionStep
 
@@ -18,6 +19,15 @@ TRIGGER_BATTERY_WARNING: Final = "battery_warning"
 TRIGGER_BATTERY_CRITICAL: Final = "battery_critical"
 TRIGGER_LINK_LOST: Final = "link_lost"
 TRIGGER_LOW_LIGHT: Final = "low_light"
+TRIGGER_INTERNAL: Final = "_internal_"
+
+FALLBACK_PRIORITY: Final[dict[str, int]] = {
+    TRIGGER_BATTERY_CRITICAL: 3,
+    TRIGGER_LINK_LOST: 2,
+    TRIGGER_BATTERY_WARNING: 1,
+    TRIGGER_LOW_LIGHT: 0,
+    TRIGGER_INTERNAL: -1,
+}
 
 ACTION_RETURN_HOME: Final = "return_home"
 ACTION_LAND: Final = "land"
@@ -33,6 +43,36 @@ class LocalPosition:
     stamp_s: float
     xy_valid: bool = True
     z_valid: bool = True
+
+
+class FallbackSequence:
+    """Atomic, ordered fallback action sequence tied to a trigger."""
+
+    def __init__(self, trigger: str, actions: Sequence[FallbackAction], priority: int) -> None:
+        self.trigger = trigger
+        self.priority = priority
+        self._actions: Deque[FallbackAction] = deque(actions)
+        self._current_action: Optional[FallbackAction] = None
+
+    def next_action(self) -> Optional[FallbackAction]:
+        if self._current_action is None:
+            if not self._actions:
+                return None
+            self._current_action = self._actions.popleft()
+        return self._current_action
+
+    def complete_action(self) -> None:
+        self._current_action = None
+
+    def append_action(self, action: FallbackAction) -> None:
+        self._actions.append(action)
+
+    def done(self) -> bool:
+        return self._current_action is None and not self._actions
+
+
+def _trigger_priority(trigger: str) -> int:
+    return FALLBACK_PRIORITY.get(trigger, -1)
 
 
 class LoggerLike(Protocol):
@@ -82,6 +122,8 @@ class TelemetryProto(Protocol):
 
     def log_waiting_preflight(self) -> None: ...
 
+    def spawn_offset_enu(self) -> Optional[tuple[float, float, float]]: ...  # pragma: no cover - passthrough
+
 
 class MissionRuntime(Protocol):
     @property
@@ -112,9 +154,7 @@ class MissionContext:
         self.hover_deadline: Optional[float] = None
         self._hover_extension_s = 0.0
         self._last_hover_duration_s = self.plan.hover_time_s
-        self._fallback_queue: Deque[FallbackAction] = deque()
-        self._active_action: Optional[FallbackAction] = None
-        self._handled_triggers: set[str] = set()
+        self._active_sequence: Optional[FallbackSequence] = None
         self.hold_until: Optional[float] = None
         self._debug_frames = bool(self.debug_frames)
         self._bootstrap_complete = False
@@ -183,7 +223,6 @@ class MissionContext:
         except AttributeError:
             pass
 
-
     def current_ned_target(self) -> tuple[float, float, float]:
         ned_target, _, _ = self.setpoints.describe_target(self.target_position_enu, self.current_step.yaw_deg)
         return ned_target
@@ -197,10 +236,13 @@ class MissionContext:
         return self.plan.steps[self.current_index]
 
     def tolerance_xy(self) -> float:
-        return max(0.15, self.plan.cruise_speed_mps * 0.15)
+        return 0.25
+
+    def tolerance_3d(self) -> float:
+        return 0.25
 
     def tolerance_z(self) -> float:
-        return 0.15
+        return 0.25
 
     def advance_waypoint(self) -> bool:
         if self.current_index < len(self.plan.steps) - 1:
@@ -234,7 +276,43 @@ class MissionContext:
         )
         self.logger.info(message)
 
-    # Mission lifecycle -------------------------------------------------
+    def send_position_setpoint(self, position: Sequence[float], yaw_deg: float, *, source: str) -> None:
+        target_enu = (float(position[0]), float(position[1]), float(position[2]))
+        ned_target, origin_ned, yaw_rad = self.setpoints.describe_target(target_enu, yaw_deg)
+        origin_enu = self.telemetry.spawn_offset_enu() or (0.0, 0.0, 0.0)
+        local = self.telemetry.local_position()
+        dist_info = ""
+        if local is not None:
+            dx = ned_target[0] - local.x
+            dy = ned_target[1] - local.y
+            dz = ned_target[2] - local.z
+            dist_xy = (dx ** 2 + dy ** 2) ** 0.5
+            dist_3d = (dx ** 2 + dy ** 2 + dz ** 2) ** 0.5
+            dist_info = (
+                f" dist3d={dist_3d:.2f}m dist_xy={dist_xy:.2f}m dz={abs(dz):.2f}m"
+            )
+        self.logger.info(
+            "Setpoint[%s]: target_enu=(%.2f, %.2f, %.2f) origin_enu=(%.2f, %.2f, %.2f) "
+            "target_ned=(%.2f, %.2f, %.2f) origin_ned=(%.2f, %.2f, %.2f) yaw=%.1fdeg%s"
+            % (
+                source,
+                target_enu[0],
+                target_enu[1],
+                target_enu[2],
+                origin_enu[0],
+                origin_enu[1],
+                origin_enu[2],
+                ned_target[0],
+                ned_target[1],
+                ned_target[2],
+                origin_ned[0],
+                origin_ned[1],
+                origin_ned[2],
+                yaw_deg,
+                dist_info,
+            )
+        )
+        self.setpoints.send_trajectory_setpoint(target_enu, yaw_deg)
 
     # Hover helpers -----------------------------------------------------
 
@@ -259,52 +337,89 @@ class MissionContext:
 
     # Fallback handling -------------------------------------------------
 
-    def enqueue_fallback(self, trigger: str) -> None:
-        actions = self.plan.fallback.get(trigger)
+    @property
+    def active_sequence(self) -> Optional[FallbackSequence]:
+        return self._active_sequence
+
+    def start_fallback_sequence(self, trigger: str, actions: Sequence[FallbackAction]) -> None:
+        if not actions or self._active_sequence is not None:
+            return
+        priority = _trigger_priority(trigger)
+        self._active_sequence = FallbackSequence(trigger, actions, priority)
+        action_names = ", ".join(a.name for a in actions)
+        self.logger.info(f"Fallback sequence started for '{trigger}' with actions: {action_names}")
+        self.hold_until = None
+
+    def override_fallback_sequence(self, trigger: str, actions: Sequence[FallbackAction]) -> None:
         if not actions:
             return
-        if trigger != TRIGGER_LOW_LIGHT and trigger in self._handled_triggers:
-            return
-        if trigger != TRIGGER_LOW_LIGHT:
-            self._handled_triggers.add(trigger)
-        for action in actions:
-            self._fallback_queue.append(action)
+        priority = _trigger_priority(trigger)
+        previous = self._active_sequence.trigger if self._active_sequence else None
+        self._active_sequence = FallbackSequence(trigger, actions, priority)
+        self.hold_until = None
+        action_names = ", ".join(a.name for a in actions)
+        if previous:
+            self.logger.warn(
+                f"Fallback sequence overridden: '{previous}' -> '{trigger}' (actions: {action_names})"
+            )
+        else:
+            self.logger.info(f"Fallback sequence started for '{trigger}' with actions: {action_names}")
 
-    def next_fallback_state(self) -> Optional[Type["State"]]:
-        while self._active_action is None and self._fallback_queue:
-            action = self._fallback_queue.popleft()
+    def active_fallback_action(self) -> Optional[FallbackAction]:
+        if self._active_sequence is None:
+            return None
+        return self._active_sequence.next_action()
+
+    def complete_active_action(self) -> None:
+        if self._active_sequence is None:
+            return
+        self._active_sequence.complete_action()
+        self.hold_until = None
+        if self._active_sequence.done():
+            self.logger.info(f"Fallback sequence '{self._active_sequence.trigger}' complete")
+            self._active_sequence = None
+
+    def next_fallback_state(self, *, current_state: Optional["State"] = None) -> Optional[type["State"]]:
+        sequence = self._active_sequence
+        if sequence is None:
+            return None
+        while True:
+            action = sequence.next_action()
+            if action is None:
+                self.logger.info(f"Fallback sequence '{sequence.trigger}' complete")
+                self._active_sequence = None
+                return None
             action_name = action.name.lower()
             if action_name == ACTION_INCREASE_HOVER:
                 self.add_hover_extension(action.value or self.plan.hover_time_s)
+                self.complete_active_action()
                 continue
             if action_name == ACTION_RETURN_HOME:
-                self._active_action = action
                 return ReturnHomeState
             if action_name == ACTION_LAND:
-                self._active_action = action
                 return EmergencyLandState
             if action_name == ACTION_HOLD:
                 duration = action.value or self.plan.hover_time_s
                 self.hold_until = self.now() + duration
-                self._active_action = action
-                return FallbackHoldState
-            self.logger.warn(f"Unknown fallback action '{action.name}', ignoring")
-        return None
+                return HoldState
+            self.logger.warn(f"Unknown fallback action '{action.name}', skipping")
+            self.complete_active_action()
 
-    def active_action(self) -> Optional[FallbackAction]:
-        return self._active_action
-
-    def complete_active_action(self) -> None:
-        self._active_action = None
-        self.hold_until = None
-
-    def has_pending_actions(self) -> bool:
-        if self._active_action is not None:
-            return True
-        return bool(self._fallback_queue)
-
-    def queue_action(self, name: str, value: Optional[float] = None) -> None:
-        self._fallback_queue.append(FallbackAction(name, value))
+    def queue_action(self, name: str, value: Optional[float] = None, *, trigger: str = TRIGGER_INTERNAL) -> None:
+        action = FallbackAction(name, value)
+        if self._active_sequence is None:
+            self.start_fallback_sequence(trigger, [action])
+            return
+        if self._active_sequence.trigger == trigger:
+            self._active_sequence.append_action(action)
+            return
+        if _trigger_priority(trigger) > self._active_sequence.priority:
+            self.override_fallback_sequence(trigger, [action])
+            return
+        self.logger.warn(
+            f"Ignored queued action '{name}' for trigger '{trigger}' because "
+            f"fallback sequence '{self._active_sequence.trigger}' is active"
+        )
 
     # State publication -------------------------------------------------
 
@@ -312,37 +427,44 @@ class MissionContext:
         self.runtime.publish_state(name)
 
 
-class State:
-    """Interface for FSM states (kept stateless; persist data in MissionContext)."""
+class State(ABC):
+    """Lifecycle interface for FSM states. Keep persistent data in MissionContext."""
 
-    def on_enter(self, ctx: MissionContext) -> None:  # pragma: no cover - default noop
+    def enter(self, ctx: MissionContext) -> None:  # pragma: no cover - default noop
         pass
 
-    def on_exit(self, ctx: MissionContext) -> None:  # pragma: no cover - default noop
+    def body(self, ctx: MissionContext) -> None:  # pragma: no cover - default noop
         pass
 
-    def tick(self, ctx: MissionContext) -> Optional[Type["State"]]:
+    @abstractmethod
+    def tick(self, ctx: MissionContext) -> Optional[type["State"]]:
+        """Return the next state class or None to remain."""
         raise NotImplementedError
+
+    def exit(self, ctx: MissionContext) -> None:  # pragma: no cover - default noop
+        pass
 
 
 class BootstrapState(State):
     def __init__(self) -> None:
         self.counter = 0
 
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.bootstrap_position_enu(), ctx.target_yaw_deg)
+    def body(self, ctx: MissionContext) -> None:
+        ctx.send_position_setpoint(ctx.bootstrap_position_enu(), ctx.target_yaw_deg, source="BootstrapState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
         self.counter += 1
-        if self.counter >= 20:
-            return OffboardInitState
-        return None
+        return OffboardInitState if self.counter >= 20 else None
 
 
 class OffboardInitState(State):
     def __init__(self) -> None:
         self._command_sent = False
 
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.bootstrap_position_enu(), ctx.target_yaw_deg)
+    def body(self, ctx: MissionContext) -> None:
+        ctx.send_position_setpoint(ctx.bootstrap_position_enu(), ctx.target_yaw_deg, source="OffboardInitState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
         if not self._command_sent:
             ctx.logger.info("OFFBOARD mode command sent")
             ctx.setpoints.send_vehicle_command(
@@ -361,8 +483,10 @@ class ArmingState(State):
     def __init__(self) -> None:
         self._arm_sent = False
 
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.bootstrap_position_enu(), ctx.target_yaw_deg)
+    def body(self, ctx: MissionContext) -> None:
+        ctx.send_position_setpoint(ctx.bootstrap_position_enu(), ctx.target_yaw_deg, source="ArmingState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
         if not ctx.telemetry.is_offboard_active():
             return None
         if not ctx.telemetry.preflight_checks_pass():
@@ -382,9 +506,13 @@ class ArmingState(State):
 
 
 class TransitState(State):
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.target_position_enu, ctx.target_yaw_deg)
+    def enter(self, ctx: MissionContext) -> None:
         ctx.hover_deadline = None
+
+    def body(self, ctx: MissionContext) -> None:
+        ctx.send_position_setpoint(ctx.target_position_enu, ctx.target_yaw_deg, source="TransitState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
         local = ctx.telemetry.local_position()
         if local is None:
             return None
@@ -394,7 +522,25 @@ class TransitState(State):
         dz = target[2] - local.z
         distance_xy = (dx ** 2 + dy ** 2) ** 0.5
         altitude_error = abs(dz)
-        if distance_xy < ctx.tolerance_xy() and altitude_error < ctx.tolerance_z():
+        distance_3d = (dx ** 2 + dy ** 2 + dz ** 2) ** 0.5
+        if distance_3d >= ctx.tolerance_3d() or altitude_error >= ctx.tolerance_z():
+            ctx.logger.info(
+                "Transit remaining: dist3d=%.2f xy=%.2f dz=%.2f tol3d=%.2f ztol=%.2f local=(%.2f, %.2f, %.2f) target=(%.2f, %.2f, %.2f)"
+                % (
+                    distance_3d,
+                    distance_xy,
+                    altitude_error,
+                    ctx.tolerance_3d(),
+                    ctx.tolerance_z(),
+                    local.x,
+                    local.y,
+                    local.z,
+                    target[0],
+                    target[1],
+                    target[2],
+                )
+            )
+        if distance_3d < ctx.tolerance_3d() and altitude_error < ctx.tolerance_z():
             step = ctx.current_step
             ctx.logger.info(
                 "FSM state -> HOVER, wp_idx=%d, target=(%.2f, %.2f, %.2f)"
@@ -423,8 +569,10 @@ class TransitState(State):
 
 
 class HoverState(State):
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.target_position_enu, ctx.target_yaw_deg)
+    def body(self, ctx: MissionContext) -> None:
+        ctx.send_position_setpoint(ctx.target_position_enu, ctx.target_yaw_deg, source="HoverState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
         if ctx.hover_deadline is None:
             return TransitState
         if ctx.hover_elapsed():
@@ -448,7 +596,7 @@ class InspectState(State):
         self._deadline: Optional[float] = None
         self._wait_for_ack = False
 
-    def on_enter(self, ctx: MissionContext) -> None:
+    def enter(self, ctx: MissionContext) -> None:
         self._wait_for_ack = ctx.plan.inspection.require_ack
         timeout = ctx.plan.inspection.timeout_s
         if self._wait_for_ack:
@@ -458,8 +606,10 @@ class InspectState(State):
             self._deadline = None
             ctx.logger.info("FSM state -> INSPECT (hover-only)")
 
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.target_position_enu, ctx.target_yaw_deg)
+    def body(self, ctx: MissionContext) -> None:
+        ctx.send_position_setpoint(ctx.target_position_enu, ctx.target_yaw_deg, source="InspectState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
         if self._wait_for_ack:
             result = ctx.telemetry.pop_inspection_result()
             if result:
@@ -478,14 +628,14 @@ class InspectState(State):
             return self._advance_on_hover(ctx)
         return None
 
-    def _advance_on_hover(self, ctx: MissionContext) -> Optional[Type[State]]:
+    def _advance_on_hover(self, ctx: MissionContext) -> Optional[type[State]]:
         if ctx.hover_deadline is None:
             return TransitState
         if ctx.hover_elapsed():
             return self._advance(ctx)
         return None
 
-    def _advance(self, ctx: MissionContext) -> Optional[Type[State]]:
+    def _advance(self, ctx: MissionContext) -> Optional[type[State]]:
         if ctx.advance_waypoint():
             next_target = ctx.current_ned_target()
             ctx.logger.info(
@@ -495,62 +645,98 @@ class InspectState(State):
             return TransitState
         ctx.logger.info("FSM state -> HOLD, mission complete. Holding last setpoint (hover)")
         if ctx.plan.land_on_finish:
-            ctx.enqueue_fallback(ACTION_LAND)
+            ctx.queue_action(ACTION_RETURN_HOME)
+            ctx.queue_action(ACTION_LAND)
         return HoldState
 
 
 class HoldState(State):
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.hold_position_enu(), ctx.target_yaw_deg)
-        return None
+    def __init__(self) -> None:
+        self._hold_target: Optional[tuple[float, float, float]] = None
 
+    def enter(self, ctx: MissionContext) -> None:
+        self._hold_target = ctx.current_position_enu() or ctx.hold_position_enu()
 
-class FallbackHoldState(State):
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        ctx.setpoints.send_trajectory_setpoint(ctx.target_position_enu, ctx.target_yaw_deg)
-        if ctx.hold_until is None:
+    def body(self, ctx: MissionContext) -> None:
+        target = self._hold_target or ctx.hold_position_enu()
+        ctx.send_position_setpoint(target, ctx.target_yaw_deg, source="HoldState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
+        if ctx.hold_until is not None and ctx.now() >= ctx.hold_until:
+            ctx.logger.info("Timed hold complete")
             ctx.complete_active_action()
-            if not ctx.has_pending_actions():
-                return HoldState
-            return None
-        if ctx.now() >= ctx.hold_until:
-            ctx.logger.info("Fallback hold complete")
-            ctx.complete_active_action()
-            if not ctx.has_pending_actions():
-                return HoldState
+            # Let next_fallback_state decide if another action should take over.
         return None
 
 
 class ReturnHomeState(State):
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        target_enu = ctx.home_position_enu()
+    def __init__(self) -> None:
+        self._last_target_enu: Optional[tuple[float, float, float]] = None
+        self._phase: Optional[str] = None
+
+    def body(self, ctx: MissionContext) -> None:
+        home_enu = ctx.home_position_enu()
         safe_z = ctx.return_home_safe_z
+        current = ctx.current_position_enu()
+
+        def choose_initial_phase() -> str:
+            if current is None:
+                return "climb"
+            if safe_z is None:
+                return "final"
+            if current[2] < safe_z - ctx.tolerance_z():
+                return "climb"
+            if (
+                abs(home_enu[0] - current[0]) > ctx.tolerance_xy()
+                or abs(home_enu[1] - current[1]) > ctx.tolerance_xy()
+            ):
+                return "translate"
+            if current[2] > home_enu[2] + ctx.tolerance_z():
+                return "descend"
+            return "final"
+
+        if self._phase is None:
+            self._phase = choose_initial_phase()
+
+        target_enu = home_enu
         if safe_z is not None:
-            current_enu = ctx.current_position_enu()
-            if current_enu is None:
-                ctx.setpoints.send_trajectory_setpoint(target_enu, 0.0)
+            if self._phase == "climb":
+                # Climb/descend vertically to safe_z at current XY
+                xy = (current[0], current[1]) if current is not None else (home_enu[0], home_enu[1])
+                target_enu = (xy[0], xy[1], safe_z)
+                if current is not None and current[2] >= safe_z - ctx.tolerance_z():
+                    if (
+                        abs(home_enu[0] - current[0]) > ctx.tolerance_xy()
+                        or abs(home_enu[1] - current[1]) > ctx.tolerance_xy()
+                    ):
+                        self._phase = "translate"
+                    elif current[2] > home_enu[2] + ctx.tolerance_z():
+                        self._phase = "descend"
+                    else:
+                        self._phase = "final"
+            elif self._phase == "translate":
+                # Translate to home XY at safe_z
+                target_enu = (home_enu[0], home_enu[1], safe_z)
+                if current is not None:
+                    if (
+                        abs(home_enu[0] - current[0]) <= ctx.tolerance_xy()
+                        and abs(home_enu[1] - current[1]) <= ctx.tolerance_xy()
+                    ):
+                        self._phase = "descend" if current[2] > home_enu[2] + ctx.tolerance_z() else "final"
+            elif self._phase == "descend":
+                # Descend to home altitude
+                target_enu = home_enu
+                if current is not None and current[2] <= home_enu[2] + ctx.tolerance_z():
+                    self._phase = "final"
             else:
-                # 1) Climb/descend vertically to safe_z at current XY
-                if current_enu[2] < safe_z - ctx.tolerance_z():
-                    climb_target = (current_enu[0], current_enu[1], safe_z)
-                    ctx.setpoints.send_trajectory_setpoint(climb_target, 0.0)
-                    return None
-                # 2) Translate to home XY at safe_z
-                home_at_safe = (target_enu[0], target_enu[1], safe_z)
-                if (
-                    abs(home_at_safe[0] - current_enu[0]) > ctx.tolerance_xy()
-                    or abs(home_at_safe[1] - current_enu[1]) > ctx.tolerance_xy()
-                ):
-                    ctx.setpoints.send_trajectory_setpoint(home_at_safe, 0.0)
-                    return None
-                # 3) Descend to home altitude
-                if current_enu[2] > target_enu[2] + ctx.tolerance_z():
-                    descend_target = (target_enu[0], target_enu[1], target_enu[2])
-                    ctx.setpoints.send_trajectory_setpoint(descend_target, 0.0)
-                else:
-                    ctx.setpoints.send_trajectory_setpoint(target_enu, 0.0)
-        else:
-            ctx.setpoints.send_trajectory_setpoint(target_enu, 0.0)
+                target_enu = home_enu
+
+        self._last_target_enu = target_enu
+        ctx.send_position_setpoint(target_enu, 0.0, source="ReturnHomeState")
+
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
+        target_enu = self._last_target_enu or ctx.home_position_enu()
+        home_enu = ctx.home_position_enu()
         local = ctx.telemetry.local_position()
         if local is None:
             return None
@@ -560,12 +746,24 @@ class ReturnHomeState(State):
         dz = ned_target[2] - local.z
         distance_xy = (dx ** 2 + dy ** 2) ** 0.5
         altitude_error = abs(dz)
-        if distance_xy < ctx.tolerance_xy() and altitude_error < ctx.tolerance_z():
+        if self._phase != "final":
+            return None
+        # Evaluate completion only against the final home target to avoid
+        # stopping at intermediate climb/translate waypoints.
+        ned_home, _, _ = ctx.setpoints.describe_target(home_enu, 0.0)
+        hx = ned_home[0] - local.x
+        hy = ned_home[1] - local.y
+        hz = ned_home[2] - local.z
+        home_xy = (hx ** 2 + hy ** 2) ** 0.5
+        home_alt_err = abs(hz)
+        if home_xy < ctx.tolerance_xy() and home_alt_err < ctx.tolerance_z():
             ctx.logger.info("Return-home reached. Holding position")
             ctx.set_hold_override(ctx.home_position_enu())
             ctx.complete_active_action()
-            if not ctx.has_pending_actions():
-                return HoldState
+            next_state = ctx.next_fallback_state(current_state=self)
+            if next_state:
+                return next_state
+            return HoldState
         return None
 
 
@@ -573,58 +771,135 @@ class EmergencyLandState(State):
     def __init__(self) -> None:
         self._command_sent = False
 
-    def on_enter(self, ctx: MissionContext) -> None:
+    def enter(self, ctx: MissionContext) -> None:
         ctx.logger.error("Fallback engaged: EMERGENCY LAND")
         ctx.setpoints.send_vehicle_command(VEHICLE_CMD_NAV_LAND)
         self._command_sent = True
         ctx.complete_active_action()
 
-    def tick(self, ctx: MissionContext) -> Optional[Type[State]]:
-        # Do not keep sending position setpoints: let PX4 execute NAV_LAND.
+    def tick(self, ctx: MissionContext) -> Optional[type[State]]:
+        if not ctx.telemetry.is_armed(): # When PX4 finishes NAV_LAND it disarms automatically.
+            ctx.logger.info("Landing complete. Transitioning to MissionEndState")
+            return MissionEndState
         return None
+
+class MissionEndState(State):
+    def tick(self, ctx):
+        return None   # Do nothing forever
+
+
+class FallbackEvaluator:
+    """Centralized fallback trigger handling and action selection."""
+
+    def __init__(self, ctx: MissionContext) -> None:
+        self._ctx = ctx
+        self._latched_triggers: set[str] = set()
+
+    def process_external_events(self) -> None:
+        telem = self._ctx.telemetry
+        newly_active: list[str] = []
+        current_active: set[str] = set()
+
+        def detect(trigger: str, active: bool) -> None:
+            if not active:
+                return
+            current_active.add(trigger)
+            if trigger not in self._latched_triggers:
+                newly_active.append(trigger)
+
+        detect(TRIGGER_BATTERY_CRITICAL, telem.battery_critical())
+        detect(TRIGGER_BATTERY_WARNING, telem.battery_warning())
+        detect(TRIGGER_LINK_LOST, not telem.data_link_ok())
+        if telem.consume_low_light_event():
+            newly_active.append(TRIGGER_LOW_LIGHT)
+
+        # Update latches for next tick (low_light is event-based, so we do not latch it)
+        self._latched_triggers = {t for t in current_active if t != TRIGGER_LOW_LIGHT}
+
+        # Handle low-light as non-interrupting hover extension
+        if TRIGGER_LOW_LIGHT in newly_active:
+            actions = self._ctx.plan.fallback.get(TRIGGER_LOW_LIGHT) or []
+            for action in actions:
+                if action.name.lower() == ACTION_INCREASE_HOVER:
+                    self._ctx.add_hover_extension(action.value or self._ctx.plan.hover_time_s)
+                else:
+                    self._ctx.logger.warn(
+                        f"Low-light fallback action '{action.name}' ignored (non-interrupting only)"
+                    )
+            newly_active = [t for t in newly_active if t != TRIGGER_LOW_LIGHT]
+
+        if not newly_active:
+            return
+
+        # Highest-priority trigger with configured actions wins for sequence start/override
+        for trigger in sorted(newly_active, key=_trigger_priority, reverse=True):
+            priority = _trigger_priority(trigger)
+            actions = self._ctx.plan.fallback.get(trigger)
+            if trigger == TRIGGER_BATTERY_CRITICAL and not actions:
+                self._ctx.logger.warn(
+                    "Battery critical detected without configured fallback; using emergency LAND"
+                )
+                actions = [FallbackAction(ACTION_LAND)]
+            if not actions:
+                continue
+
+            active_seq = self._ctx.active_sequence
+            if active_seq is None:
+                self._ctx.start_fallback_sequence(trigger, actions)
+                return
+            if trigger == active_seq.trigger:
+                return
+            if priority > active_seq.priority:
+                self._ctx.override_fallback_sequence(trigger, actions)
+            return
+
+    def next_state(self, current_state: Optional[State] = None) -> Optional[type[State]]:
+        return self._ctx.next_fallback_state(current_state=current_state)
 
 
 class MissionStateMachine:
-    def __init__(self, ctx: MissionContext) -> None:
+    def __init__(self, ctx: MissionContext, fallback: Optional[FallbackEvaluator] = None) -> None:
         self._ctx = ctx
+        self._fallback = fallback or FallbackEvaluator(ctx)
         self._state: State = BootstrapState()
-        self._state.on_enter(ctx)
+        self._state.enter(ctx)
         ctx.publish_state(self._state.__class__.__name__)
 
     def tick(self) -> None:
         ctx = self._ctx
-        self._process_external_events()
+        if isinstance(self._state, MissionEndState):
+            return
+        self._fallback.process_external_events()
+        fallback_state = self._fallback.next_state(self._state)
+        if fallback_state is not None and not isinstance(self._state, fallback_state):
+            self._transition(fallback_state)
+            return
+
+        self._state.body(ctx)
+
         next_state_cls = self._state.tick(ctx)
         if next_state_cls is not None:
             self._handle_step_action_transition(ctx, next_state_cls)
             self._transition(next_state_cls)
+            fallback_state = self._fallback.next_state(self._state)
+            if fallback_state is not None and not isinstance(self._state, fallback_state):
+                self._transition(fallback_state)
             return
-        fallback_state = ctx.next_fallback_state()
+
+        fallback_state = self._fallback.next_state(self._state)
         if fallback_state is not None and not isinstance(self._state, fallback_state):
             self._transition(fallback_state)
 
-    def _handle_step_action_transition(self, ctx: MissionContext, next_state_cls: Type[State]) -> None:
+    def _handle_step_action_transition(self, ctx: MissionContext, next_state_cls: type[State]) -> None:
         if isinstance(self._state, (HoverState, InspectState)) and ctx.current_step.action:
             action = ctx.current_step.action
             ctx.logger.info(f"Mission action trigger: {action} at step {ctx.current_index}")
             ctx.publish_state(action)
 
-    def _process_external_events(self) -> None:
-        ctx = self._ctx
-        telem = ctx.telemetry
-        if telem.battery_critical():
-            ctx.enqueue_fallback(TRIGGER_BATTERY_CRITICAL)
-        elif telem.battery_warning():
-            ctx.enqueue_fallback(TRIGGER_BATTERY_WARNING)
-        if not telem.data_link_ok():
-            ctx.enqueue_fallback(TRIGGER_LINK_LOST)
-        if telem.consume_low_light_event():
-            ctx.enqueue_fallback(TRIGGER_LOW_LIGHT)
-
-    def _transition(self, state_cls: Type[State]) -> None:
-        self._state.on_exit(self._ctx)
+    def _transition(self, state_cls: type[State]) -> None:
+        self._state.exit(self._ctx)
         self._state = state_cls()
-        self._state.on_enter(self._ctx)
+        self._state.enter(self._ctx)
         self._ctx.publish_state(self._state.__class__.__name__)
 
 
@@ -632,5 +907,7 @@ __all__ = [
     "MissionRuntime",
     "MissionContext",
     "MissionStateMachine",
+    "FallbackEvaluator",
+    "State",
     "LocalPosition",
 ]
