@@ -46,6 +46,7 @@ class Telemetry:
         self._local_position: Optional[LocalPosition] = None
         self._vehicle_status: Optional[VehicleStatus] = None
         self._battery_status: Optional[BatteryStatus] = None
+        self._last_battery_warning: Optional[int] = None
 
         # Inspection system
         self._pending_inspection_result: Optional[str] = None
@@ -141,7 +142,13 @@ class Telemetry:
                 self._node.get_logger().info("ARMED (ACK)")
 
     def _on_battery_status(self, msg: BatteryStatus) -> None:
+        previous_warning = self._last_battery_warning
         self._battery_status = msg
+        self._last_battery_warning = msg.warning
+        if previous_warning != msg.warning:
+            self._node.get_logger().info(
+                f"Battery warning level changed: {previous_warning} -> {msg.warning}"
+            )
 
     def log_battery(self, where: str = "") -> None:
         s = self._battery_status
