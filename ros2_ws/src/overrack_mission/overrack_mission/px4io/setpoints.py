@@ -26,8 +26,11 @@ class SetpointPublisher:
         self._vehicle_command_pub = node.create_publisher(VehicleCommand, "/fmu/in/vehicle_command", CONTROL_QOS)
         self._bootstrap_logs = 0
         self._bootstrap_mode = True
+        self._link_loss_simulated = False
 
     def send_offboard_control_mode(self) -> None:
+        if self._link_loss_simulated:
+            return
         msg = OffboardControlMode()
         msg.timestamp = self._now_us()
         msg.position = True
@@ -38,6 +41,8 @@ class SetpointPublisher:
         self._offboard_pub.publish(msg)
 
     def send_trajectory_setpoint(self, enu_position: Sequence[float], yaw_deg: float = 0.0) -> None:
+        if self._link_loss_simulated:
+            return
         ned_target, yaw_rad, _ = self._prepare_target(enu_position, yaw_deg)
         msg = TrajectorySetpoint()
         msg.timestamp = self._now_us()
@@ -79,6 +84,22 @@ class SetpointPublisher:
         msg.source_component = 1
         msg.from_external = True
         self._vehicle_command_pub.publish(msg)
+
+    def set_link_loss_simulation(self, enabled: bool) -> None:
+        enabled = bool(enabled)
+        if enabled == self._link_loss_simulated:
+            return
+        self._link_loss_simulated = enabled
+        if enabled:
+            self._node.get_logger().warn(
+                "Link-loss simulation enabled: Offboard setpoints/heartbeats will not be published"
+            )
+        else:
+            self._node.get_logger().info("Link-loss simulation disabled: resuming Offboard setpoints")
+
+    @property
+    def link_loss_simulated(self) -> bool:
+        return self._link_loss_simulated
 
     # ------------------------------------------------------------------
     # Helpers

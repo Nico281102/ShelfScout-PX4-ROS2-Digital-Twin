@@ -22,8 +22,6 @@ inspection:
 fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
-  low_light: ["increase_hover:2s"]
-  link_lost: ["hold:5s", "land"]
 
 avoidance: stop
 ignore_gps: true

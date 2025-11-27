@@ -18,14 +18,12 @@ VEHICLE_CMD_NAV_LAND = 21
 TRIGGER_BATTERY_WARNING: Final = "battery_warning"
 TRIGGER_BATTERY_CRITICAL: Final = "battery_critical"
 TRIGGER_LINK_LOST: Final = "link_lost"
-TRIGGER_LOW_LIGHT: Final = "low_light"
 TRIGGER_INTERNAL: Final = "_internal_"
 
 FALLBACK_PRIORITY: Final[dict[str, int]] = {
     TRIGGER_BATTERY_CRITICAL: 3,
     TRIGGER_LINK_LOST: 2,
     TRIGGER_BATTERY_WARNING: 1,
-    TRIGGER_LOW_LIGHT: 0,
     TRIGGER_INTERNAL: -1,
 }
 
@@ -117,8 +115,6 @@ class TelemetryProto(Protocol):
     def battery_critical(self) -> bool: ...
 
     def pop_inspection_result(self) -> Optional[str]: ...
-
-    def consume_low_light_event(self) -> bool: ...
 
     def log_waiting_preflight(self) -> None: ...
 
@@ -291,7 +287,7 @@ class MissionContext:
             dist_info = (
                 f" dist3d={dist_3d:.2f}m dist_xy={dist_xy:.2f}m dz={abs(dz):.2f}m"
             )
-        self.logger.info(
+        self.logger.debug(
             "Setpoint[%s]: target_enu=(%.2f, %.2f, %.2f) origin_enu=(%.2f, %.2f, %.2f) "
             "target_ned=(%.2f, %.2f, %.2f) origin_ned=(%.2f, %.2f, %.2f) yaw=%.1fdeg%s"
             % (
@@ -524,7 +520,7 @@ class TransitState(State):
         altitude_error = abs(dz)
         distance_3d = (dx ** 2 + dy ** 2 + dz ** 2) ** 0.5
         if distance_3d >= ctx.tolerance_3d() or altitude_error >= ctx.tolerance_z():
-            ctx.logger.info(
+            ctx.logger.debug(
                 "Transit remaining: dist3d=%.2f xy=%.2f dz=%.2f tol3d=%.2f ztol=%.2f local=(%.2f, %.2f, %.2f) target=(%.2f, %.2f, %.2f)"
                 % (
                     distance_3d,
@@ -794,6 +790,18 @@ class FallbackEvaluator:
     def __init__(self, ctx: MissionContext) -> None:
         self._ctx = ctx
         self._latched_triggers: set[str] = set()
+        if "link_lost" in self._ctx.plan.fallback:
+            self._ctx.logger.warn("Ignoring 'link_lost' fallback actions; PX4 failsafes own link-loss handling")
+            try:
+                self._ctx.plan.fallback.pop("link_lost", None)
+            except Exception:
+                pass
+        if "low_light" in self._ctx.plan.fallback:
+            self._ctx.logger.warn("Ignoring 'low_light' fallback actions; low-light is handled by torch control only")
+            try:
+                self._ctx.plan.fallback.pop("low_light", None)
+            except Exception:
+                pass
 
     def process_external_events(self) -> None:
         telem = self._ctx.telemetry
@@ -809,24 +817,9 @@ class FallbackEvaluator:
 
         detect(TRIGGER_BATTERY_CRITICAL, telem.battery_critical())
         detect(TRIGGER_BATTERY_WARNING, telem.battery_warning())
-        detect(TRIGGER_LINK_LOST, not telem.data_link_ok())
-        if telem.consume_low_light_event():
-            newly_active.append(TRIGGER_LOW_LIGHT)
 
-        # Update latches for next tick (low_light is event-based, so we do not latch it)
-        self._latched_triggers = {t for t in current_active if t != TRIGGER_LOW_LIGHT}
-
-        # Handle low-light as non-interrupting hover extension
-        if TRIGGER_LOW_LIGHT in newly_active:
-            actions = self._ctx.plan.fallback.get(TRIGGER_LOW_LIGHT) or []
-            for action in actions:
-                if action.name.lower() == ACTION_INCREASE_HOVER:
-                    self._ctx.add_hover_extension(action.value or self._ctx.plan.hover_time_s)
-                else:
-                    self._ctx.logger.warn(
-                        f"Low-light fallback action '{action.name}' ignored (non-interrupting only)"
-                    )
-            newly_active = [t for t in newly_active if t != TRIGGER_LOW_LIGHT]
+        # Update latches for next tick
+        self._latched_triggers = set(current_active)
 
         if not newly_active:
             return

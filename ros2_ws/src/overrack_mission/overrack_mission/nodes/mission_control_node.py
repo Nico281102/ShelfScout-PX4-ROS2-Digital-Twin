@@ -7,8 +7,10 @@ import pathlib
 from typing import Optional, Sequence, Tuple
 
 import rclpy
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from std_msgs.msg import String
 
 from ..core import (
@@ -78,8 +80,14 @@ class MissionControlNode(Node):
         gazebo_model = (
             self.declare_parameter("gazebo_model_name", "iris_opt_flow").get_parameter_value().string_value
         )
+        self._link_loss_after_param = "sim.disable_link_after_s"
+        self._link_loss_after_s = float(self.declare_parameter(self._link_loss_after_param, -1.0).value)
+        self._link_loss_triggered = False
+        self._sim_start_time = self.get_clock().now().nanoseconds / 1e9
         telemetry = Telemetry(self, gazebo_model=gazebo_model)
         setpoints = SetpointPublisher(self, telemetry, ned_bounds)
+        self._setpoints = setpoints
+        self._configure_link_loss_after(self._link_loss_after_s)
         runtime = RosMissionRuntime(self, telemetry, setpoints)
 
         try:
@@ -107,6 +115,7 @@ class MissionControlNode(Node):
 
         # 20 Hz keep-offboard timer (matches previous behaviour)
         self._timer = self.create_timer(0.025, self._on_timer) #0.05 = 20Hz
+        self.add_on_set_parameters_callback(self._on_parameters_changed)
 
     def _resolve_mission_path(self, value: str) -> Optional[pathlib.Path]:
         if not value:
@@ -117,7 +126,42 @@ class MissionControlNode(Node):
         return path if path.is_file() else None
 
     def _on_timer(self) -> None:
+        if (
+            self._link_loss_after_s is not None
+            and not self._link_loss_triggered
+            and not self._setpoints.link_loss_simulated
+        ):
+            now = self.get_clock().now().nanoseconds / 1e9
+            if (now - self._sim_start_time) >= self._link_loss_after_s:
+                self.get_logger().warn(
+                    "Link-loss simulation auto-triggered after %.1fs"
+                    % self._link_loss_after_s
+                )
+                self._setpoints.set_link_loss_simulation(True)
+                self._link_loss_triggered = True
         self._controller.tick()
+
+    def _on_parameters_changed(self, params: list[Parameter]) -> SetParametersResult:
+        result = SetParametersResult()
+        result.successful = True
+        for param in params:
+            if param.name == self._link_loss_after_param:
+                self._configure_link_loss_after(float(param.value))
+        return result
+
+    def _configure_link_loss_after(self, value: float) -> None:
+        if value < 0.0:
+            self._link_loss_after_s = None
+            self._link_loss_triggered = False
+            self._setpoints.set_link_loss_simulation(False)
+            return
+        self._link_loss_after_s = value
+        self._link_loss_triggered = False
+        self._sim_start_time = self.get_clock().now().nanoseconds / 1e9
+        if value == 0.0:
+            self.get_logger().warn("Link-loss simulation auto-triggered immediately (disable_link_after_s=0)")
+            self._setpoints.set_link_loss_simulation(True)
+            self._link_loss_triggered = True
 
     # ------------------------------------------------------------------
     # Parameter helpers

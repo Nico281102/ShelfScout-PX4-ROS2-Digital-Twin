@@ -47,7 +47,6 @@ class MetricsNode(Node):
                 self._inspection_suspect += 1
             self._inspection_log.append((self._current_snapshot_index, self._now(), payload))
         elif payload == "LOW_LIGHT":
-            self._fallback_counts["low_light"] += 1
             self._snapshot_low_light += 1
             self._inspection_log.append((self._current_snapshot_index, self._now(), payload))
 

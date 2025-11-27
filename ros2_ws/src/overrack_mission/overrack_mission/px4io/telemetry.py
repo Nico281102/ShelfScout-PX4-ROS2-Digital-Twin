@@ -50,7 +50,6 @@ class Telemetry:
 
         # Inspection system
         self._pending_inspection_result: Optional[str] = None
-        self._low_light_event = False
 
         # Spawn offset management
         self._spawn_offset_enu: Optional[tuple[float, float, float]] = None
@@ -161,10 +160,11 @@ class Telemetry:
 
     def _on_inspection_event(self, msg: String) -> None:
         payload = (msg.data or "").strip().upper()
-        if payload == "LOW_LIGHT":
-            self._low_light_event = True
-        elif payload in {"OK", "SUSPECT"}:
+        if payload in {"OK", "SUSPECT"}:
             self._pending_inspection_result = payload
+        elif payload == "LOW_LIGHT":
+            # Torch control is handled externally; low-light no longer triggers FSM fallbacks.
+            return
         else:
             self._node.get_logger().warn(
                 f"Unknown inspection event: {payload!r}"
@@ -265,11 +265,8 @@ class Telemetry:
         self._pending_inspection_result = None
         return out
 
-    def consume_low_light_event(self) -> bool:
-        if self._low_light_event:
-            self._low_light_event = False
-            return True
-        return False
+    def log_waiting_preflight(self) -> None:
+        self._node.get_logger().info("Waiting for PX4 preflight checks to pass...")
 
     # ----------------------------------------------------------------------
     # Spawn offset helpers

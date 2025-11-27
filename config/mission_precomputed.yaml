@@ -14,11 +14,9 @@ inspection:
   timeout_s: 5.0
 
 fallback:
-  battery_warning: ["return_home"]
+  battery_warning: ["return_home", "land"]
   battery_critical: ["land"]
-  low_light: ["increase_hover:2s"]
-  link_lost: ["hold:5s", "land"]
 
 avoidance: stop
 ignore_gps: false
-land_on_finish: false
+land_on_finish: true
