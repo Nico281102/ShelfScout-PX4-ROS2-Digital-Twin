@@ -49,6 +49,7 @@ log/
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
+rosbag2_*
 .env
 # Internal tracking
 TODO_INTERNAL.md

@@ -1,104 +1,104 @@
 # Over-Rack Inventory Scan (PX4 + ROS 2)
 
 ## Overview
-Over-Rack Scan è un ambiente di test per validare missioni PX4 indoor con ROS 2 e Gazebo Classic. Il progetto fornisce uno stack riproducibile basato su PX4 SITL (release 1.14.4), il bridge DDS Micro XRCE-DDS Agent e un nodo ROS 2 che pubblica setpoint offboard partendo da un piano missione YAML. L'indoor world replica una corsia di scaffali con marker barcode per verificare pipeline di scansione e copertura. Gli script Bash orchestrano l'avvio completo: build del workspace, estensione del `GAZEBO_MODEL_PATH`, lancio di PX4, avvio dell'agent e del mission runner. Log e asset vengono salvati nella repo per velocizzare il debug e analizzare metriche (hover drift, copertura, temperature CPU). Un set di utility opzionali supporta la visione artificiale e la manutenzione dei modelli Gazebo.
+Over-Rack Scan is a test environment for validating indoor PX4 missions with ROS 2 and Gazebo Classic. It ships a reproducible stack built on PX4 SITL (release 1.14.4), the Micro XRCE-DDS Agent bridge, and a ROS 2 node that publishes Offboard setpoints from a YAML mission plan. The indoor world recreates a shelf aisle with barcode markers to exercise scanning and coverage pipelines. Bash scripts orchestrate the full launch: workspace build, `GAZEBO_MODEL_PATH` setup, PX4 start, bridge spawn, and mission runner start. Logs and assets live in-repo to speed up debugging and metric analysis (hover drift, coverage, CPU temps). Optional utilities support CV pipelines and Gazebo model maintenance.
 
-## Struttura del repo
+## Repository Layout
 ```text
 overrack-scan/
 ├── scripts/
-│   · Orchestratori (`run_ros2_system.sh`) e wrapper PX4/Gazebo (`launch_px4_gazebo.sh`, `launch_gazebo.sh`).
-│   · Tool di supporto (patch modello Iris, setup venv) e pipeline opzionali (`run_vision.py`).
-│   · Script legacy/manuali (es. `run_manual_like.sh`, demo FSM) e asset di test (`data/`, `test_data/`).
-│   · Dipende da `PX4_DIR`, `config/mission.yaml`, `worlds/overrack_indoor.world` e Micro XRCE Agent.
-│   · Stato: baseline attivo; alcune utility segnate come legacy o zombie nel report dedicato.
+│   · Orchestrators (`run_ros2_system.sh`) and PX4/Gazebo wrappers (`launch_px4_gazebo.sh`, `launch_gazebo.sh`).
+│   · Support tools (Iris model patch, venv setup) and optional pipelines (`run_vision.py`).
+│   · Legacy/manual scripts (e.g., removed `run_manual_like.sh`, FSM demos) plus runtime assets (`data/`, `test_data/`).
+│   · Depends on `PX4_DIR`, `config/mission.yaml`, `worlds/overrack_indoor.world`, and the Micro XRCE Agent.
+│   · Status: active baseline; some utilities marked legacy/zombie in the structure report.
 ├── ros2_ws/src/
-│   · Workspace ROS 2 isolato con `overrack_mission` (mission runner), `px4_msgs` e reference `px4_ros_com`.
-│   · Build gestita da `run_ros2_system.sh` via `colcon --packages-select px4_msgs overrack_mission`.
-│   · Sorgente principale per il nodo `mission_runner` eseguito in runtime.
-│   · Integra i messaggi PX4 ufficiali (DDS) e QoS coerenti con SITL.
-│   · Stato: attivo (mission runner), reference (px4_ros_com) non compilato di default.
+│   · Isolated ROS 2 workspace with `overrack_mission` (mission runner), `px4_msgs`, and reference `px4_ros_com`.
+│   · Built by `run_ros2_system.sh` via `colcon --packages-select px4_msgs overrack_mission`.
+│   · Main source for the `mission_runner` node executed at runtime.
+│   · Ships official PX4 DDS messages and matching QoS profiles.
+│   · Status: active (`mission_runner`); reference (`px4_ros_com`) not compiled by default.
 ├── config/
-│   · `mission.yaml` definisce waypoints, quota, hover e soglie (copertura, drift, temperatura).
-│   · `px4_sitl.params` è un placeholder vuoto (caricamento disabilitato per evitare regressioni).
-│   · Caricato da `overrack_mission` e, in passato, dal mission runner legacy in `src/`.
-│   · Modificare qui per personalizzare missioni e soglie di allerta.
-│   · Stato: `mission.yaml` attivo; param file in quarantena finché non validato.
+│   · `mission.yaml` defines waypoints, altitude, hover, and thresholds (coverage, drift, temperature).
+│   · `px4_sitl.params` is an empty placeholder (loading disabled to avoid regressions).
+│   · Loaded by `overrack_mission` and previously by the legacy mission runner under `src/`.
+│   · Edit here to customise missions and alert thresholds.
+│   · Status: `mission.yaml` active; param file quarantined until validated.
 ├── models/
-│   · Modelli Gazebo custom: scaffali (`overrack_shelf`), marker (`scan_marker`), barcode board.
-│   · Usati dal mondo SDF per riprodurre la corsia indoor.
-│   · Aggiunti all'ambiente tramite `GAZEBO_MODEL_PATH` in `launch_px4_gazebo.sh`.
-│   · Compatibili con Gazebo Classic 11 e con il modello PX4 `iris_opt_flow`.
-│   · Stato: attivo (sincronizzato con il world corrente).
+│   · Custom Gazebo models: shelves (`overrack_shelf`), markers (`scan_marker`), barcode board.
+│   · Used by the SDF world to recreate the indoor aisle.
+│   · Added to the environment via `GAZEBO_MODEL_PATH` in `launch_px4_gazebo.sh`.
+│   · Compatible with Gazebo Classic 11 and the PX4 `iris_opt_flow` model.
+│   · Status: active (aligned with the current world).
 ├── worlds/
-│   · `overrack_indoor.world`: SDF principale con stanza, scaffali, camera overhead e marker.
-│   · Referenzia i modelli della cartella `models/` e salva frame in `data/images/downcam`.
-│   · Utilizzato dagli script di lancio per PX4 e per avviare Gazebo standalone.
-│   · Modificare waypoint o asset richiede aggiornare sia SDF sia `config/mission.yaml`.
-│   · Stato: attivo.
+│   · `overrack_indoor.world`: main SDF with room, shelves, overhead camera, and markers.
+│   · References `models/` assets and saves frames to `data/images/downcam`.
+│   · Used by the launch scripts for PX4 and for standalone Gazebo sessions.
+│   · Editing poses or assets requires touching both the SDF and `config/mission.yaml`.
+│   · Status: active.
 ├── data/
-│   · Raccolta output runtime (`logs/`, `images/`, `state/`) generati dagli script.
-│   · I log includono PX4, Micro XRCE Agent e mission runner; le immagini arrivano dalla camera SDF.
-│   · Directory svuotate automaticamente dagli script solo se necessario (non cancellare a mano).
-│   · Utile per troubleshooting e per alimentare la pipeline vision.
-│   · Stato: generata a runtime.
+│   · Runtime outputs (`logs/`, `images/`, `state/`) generated by the scripts.
+│   · Logs include PX4, Micro XRCE Agent, and mission runner; images come from the SDF camera.
+│   · Directories are cleared by scripts only when needed (do not delete manually).
+│   · Useful for troubleshooting and for feeding the vision pipeline.
+│   · Status: generated at runtime.
 ├── src/
-│   · Codice legacy del mission runner (FSM completa) e demo (`run_demo.py`, `run_visual_demo.py`).
-│   · Non integrato nel workspace ROS 2; richiede esecuzione manuale (`python -m src.main`).
-│   · Almomento alcune demo sono rotte (classe `MissionFSM` rimossa).
-│   · Tenere solo se si intende recuperare la FSM avanzata o pipeline CSV personalizzate.
-│   · Stato: legacy/sperimentale (vedi report structure_review).
+│   · Legacy mission runner (full FSM) and demos (`run_demo.py`, `run_visual_demo.py`).
+│   · Not wired into the ROS 2 workspace; run manually (`python -m src.main`).
+│   · Some demos are currently broken (`MissionFSM` removed).
+│   · Keep only if you plan to resurrect the advanced FSM or custom CSV pipelines.
+│   · Status: legacy/experimental (see structure_review).
 └── docs/
-    · Documentazione aggiuntiva: specifiche, note di migrazione, review struttura.
-    · `docs/structure_review.md` contiene l'analisi dettagliata + zombie.
-    · Aggiornare qui qualsiasi modifica architetturale o procedure condivise.
-    · Mantenere PDF e note legacy separati dal README principale.
-    · Stato: attivo con contenuti misti (alcuni da aggiornare).
+    · Additional documentation: specs, migration notes, structure review.
+    · `docs/structure_review.md` holds detailed analysis + zombie list.
+    · Update here any architectural changes or shared procedures.
+    · Keep PDFs and legacy notes separate from the main README.
+    · Status: active with mixed freshness (some items to update).
 ```
 
-## Prerequisiti
-- Ubuntu 22.04 LTS (desktop o con forwarding grafico) e Python 3.10.
-- ROS 2 Humble Foxy (desktop install + `colcon` e `rosdep`).
-- PX4-Autopilot v1.14.4 già clonato e buildato almeno una volta (`make px4_sitl_default`).
-- Micro XRCE-DDS Agent v2.4.3 (binary `MicroXRCEAgent` nel `PATH` o build locale).
-- Gazebo Classic 11 con pacchetti `gazebo`, `gzserver`, `gzclient` e dipendenze PX4.
-- Dipendenze opzionali per visione: `opencv-python`, `pyzbar`, `zxing-cpp`, `mavsdk`, `psutil` (installabili via `pip install -r requirements.txt`).
+## Prerequisites
+- Ubuntu 22.04 LTS (desktop or with graphical forwarding) and Python 3.10.
+- ROS 2 Humble (desktop install with `colcon` and `rosdep`).
+- PX4-Autopilot v1.14.4 already cloned and built once (`make px4_sitl_default`).
+- Micro XRCE-DDS Agent v2.4.3 (binary `MicroXRCEAgent` on `PATH` or local build).
+- Gazebo Classic 11 with packages `gazebo`, `gzserver`, `gzclient`, and PX4 dependencies.
+- Optional vision deps: `opencv-python`, `pyzbar`, `zxing-cpp`, `mavsdk`, `psutil` (via `pip install -r requirements.txt`).
 
-## Setup rapido
-- **Preparare PX4**
+## Quick Setup
+- **Prepare PX4**
   ```bash
   git clone https://github.com/PX4/PX4-Autopilot.git ~/PX4/PX4-Autopilot
   cd ~/PX4/PX4-Autopilot
   git checkout v1.14.4
   make px4_sitl_default
   ```
-  > Imposta `PX4_DIR` verso la cartella PX4 quando lanci gli script (`export PX4_DIR=~/PX4/PX4-Autopilot`).
+  > Point `PX4_DIR` to your PX4 folder when launching scripts (`export PX4_DIR=~/PX4/PX4-Autopilot`).
 
-- **Installare dipendenze ROS 2 e colcon**
+- **Install ROS 2 dependencies and colcon**
   ```bash
   sudo apt update
   sudo apt install ros-humble-desktop python3-colcon-common-extensions ros-humble-micro-xrce-dds-agent
   ```
 
-- **Build del workspace ROS 2** (sept già fatta dagli script, ma utile per debug)
+- **Build the ROS 2 workspace** (scripts do this automatically, but useful for debugging)
   ```bash
   cd ~/projects/overrack-scan/ros2_ws
   colcon build --symlink-install --packages-select px4_msgs overrack_mission
   source install/setup.bash
   ```
 
-- **Variabili d'ambiente suggerite**
+- **Suggested environment variables**
   ```bash
   export PX4_DIR=~/PX4/PX4-Autopilot
   export PROJECT_ROOT=~/projects/overrack-scan
-  # opzionale: aggiungi i modelli al path (gli script lo fanno automaticamente)
+  # optional: add models to the path (scripts do this automatically)
   export GAZEBO_MODEL_PATH="$PX4_DIR/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models:$PROJECT_ROOT/models:${GAZEBO_MODEL_PATH:-}"
-  export PX4_SIM_MODEL=iris_opt_flow   # evita override involontari
+  export PX4_SIM_MODEL=iris_opt_flow   # avoid accidental overrides
   ```
-  > `px4_sitl.params` è disabilitato: non esportare `PX4_RC_PARAMS_FILE` finché il file non viene popolato con valori verificati.
+  > `px4_sitl.params` is disabled: do not export `PX4_RC_PARAMS_FILE` until the file is populated with validated values.
 
 ## Run
-- **Stack automatico**
+- **Automatic stack**
   ```bash
   cd ~/projects/overrack-scan
   PX4_DIR=~/PX4/PX4-Autopilot \
@@ -106,18 +106,18 @@ overrack-scan/
     --world worlds/overrack_indoor.world \
     --mission config/mission.yaml
   ```
-  - Avvia PX4 SITL con modello `gazebo-classic_iris_opt_flow` (vedi `scripts/launch_px4_gazebo.sh:78-103`).
-  - Estende `GAZEBO_MODEL_PATH` con i modelli PX4 e quelli locali, mantenendo l'ordine corretto.
-  - Cerca o lancia `MicroXRCEAgent udp4 -p 8888 -v 6` e aspetta i topic `/fmu/out/*` (`scripts/run_ros2_system.sh:182-195`).
-  - Esegue `ros2 run overrack_mission mission_runner` con il mission file selezionato.
+  - Starts PX4 SITL with model `gazebo-classic_iris_opt_flow` (see `scripts/launch_px4_gazebo.sh:78-103`).
+  - Extends `GAZEBO_MODEL_PATH` with PX4 and local models in the right order.
+  - Finds or launches `MicroXRCEAgent udp4 -p 8888 -v 6` and waits for `/fmu/out/*` topics (`scripts/run_ros2_system.sh:182-195`).
+  - Runs `ros2 run overrack_mission mission_runner` with the selected mission file.
 
-- **Script manual-like (legacy)**
+- **Manual-like script (legacy)**
   ```bash
-  # run_manual_like.sh è stato rimosso; usa scripts/run_ros2_system.sh
-  # usa scripts/stop_manual_like.sh per killare PX4/Gazebo/Agent se necessario
+  # run_manual_like.sh was removed; use scripts/run_ros2_system.sh
+  # use scripts/stop_manual_like.sh to kill PX4/Gazebo/Agent if needed
   ```
 
-- **Verifica**
+- **Verify**
   ```bash
   source ros2_ws/install/setup.bash
   ros2 topic list | grep /fmu
@@ -125,32 +125,32 @@ overrack-scan/
   ```
 
 ## Troubleshooting
-- **Ambiente & PATH**
-  - `ros2` non vede i topic → `source ros2_ws/install/setup.bash` e evita di mischiare `/opt/ros/humble/setup.bash` se non necessario.
-  - Gli script devono fare `source "$ROS2_WS/install/setup.bash"` dopo aver definito `ROS2_WS` (vedi `scripts/run_ros2_system.sh`).
+- **Environment & PATH**
+  - `ros2` cannot see topics → `source ros2_ws/install/setup.bash` and avoid mixing `/opt/ros/humble/setup.bash` unless needed.
+  - Scripts must run `source "$ROS2_WS/install/setup.bash"` after defining `ROS2_WS` (see `scripts/run_ros2_system.sh`).
 
 - **Micro XRCE-DDS Agent**
-  - PX4 non pinga l'agent → avvia `MicroXRCEAgent udp4 -p 8888 -v 6` prima del mission runner e controlla i log `data/logs/micro_xrce_agent.out`.
-  - Su SSH/ambienti headless avvialo nello stesso terminale o tramite `tmux` (evita `gnome-terminal`).
+  - PX4 cannot reach the agent → start `MicroXRCEAgent udp4 -p 8888 -v 6` before the mission runner and inspect `data/logs/micro_xrce_agent.out`.
+  - On SSH/headless setups run it in the same terminal or via `tmux` (avoid `gnome-terminal`).
 
 - **PX4 + Gazebo**
-  - Modello errato (compare `iris`) → forza `PX4_SIM_MODEL=iris_opt_flow` e assicurati che `models/` non contenga `iris*` (`launch_px4_gazebo.sh:84-94`).
-  - Drone spawnato in ostacolo → verifica il `<pose>` nel world o lascia gestire lo spawn a PX4 impostando l'ambiente vuoto.
+  - Wrong model (plain `iris`) → force `PX4_SIM_MODEL=iris_opt_flow` and ensure `models/` does not contain `iris*` (`launch_px4_gazebo.sh:84-94`).
+  - Drone spawned inside an obstacle → check the `<pose>` in the world or let PX4 handle spawn by using the empty environment.
   - "PX4 server already running" → `pkill -f "px4|gzserver|gzclient|MicroXRCEAgent"`.
 
-- **Parametri & preflight**
-  - Arming bloccato (IMU/GPS) → modello `iris_opt_flow` fornisce i plugin richiesti; per indoor abilita `COM_ARM_WO_GPS=1` direttamente dalla console PX4.
-  - File `.params` → se vuoi sperimentare, duplica `config/px4_sitl.params` ma non riattivare il loader finché non è validato (vedi commento in `launch_px4_gazebo.sh:58-65`).
+- **Parameters & preflight**
+  - Arming blocked (IMU/GPS) → the `iris_opt_flow` model provides the required plugins; indoors enable `COM_ARM_WO_GPS=1` directly from the PX4 console.
+  - `.params` file → if you want to experiment, copy `config/px4_sitl.params` but do not re-enable the loader until validated (see `launch_px4_gazebo.sh:58-65`).
 
-- **Tempi di start**
-  - Topic `/fmu/out` assenti → attendi 10-15s dopo il bootstrap PX4 prima di lanciare ROS 2 o usa il `wait_for_topic` integrato.
-  - Mission runner avvia troppo presto → controlla `px4_sitl_default.out` per "Ready for takeoff".
+- **Startup timing**
+  - Missing `/fmu/out` topics → wait 10–15 s after PX4 bootstrap before launching ROS 2 or use the built-in `wait_for_topic`.
+  - Mission runner starts too early → check `px4_sitl_default.out` for "Ready for takeoff".
 
-- **Visione & Log**
-  - Immagini mancanti → la camera overhead salva in `data/images/downcam`; verifica permessi della cartella e spazio disco.
-  - Pipeline `run_vision.py` → richiede librerie opzionali; avviala con `python scripts/run_vision.py --watch data/images/downcam`.
+- **Vision & logs**
+  - Missing images → the overhead camera writes to `data/images/downcam`; verify folder permissions and disk space.
+  - `run_vision.py` pipeline → needs optional libraries; run with `python scripts/run_vision.py --watch data/images/downcam`.
 
-- **Shutdown pulito**
+- **Clean shutdown**
   ```bash
   pkill -f mission_runner
   pkill -f MicroXRCEAgent
@@ -159,11 +159,11 @@ overrack-scan/
   pkill -f gzclient
   ```
 
-## Contributi & Convenzioni
-1. **Nuovi script**: mantieni il prefisso descrittivo (`run_`, `launch_`, `fix_`) e documenta l'utilizzo nel README e in `docs/structure_review.md`. Ricorda di gestire `PX4_DIR`, `ROS2_WS` e le variabili d'ambiente come negli script esistenti.
-2. **Modelli & world**: aggiungi nuovi asset sotto `models/<name>` con `model.config` + `model.sdf` e aggiorna il world o crea un file `.world` dedicato. Specifica nel README quale world/modello usare.
-3. **Parametri PX4**: lavora su copie di `px4_sitl.params`; non abilitare il caricamento automatico finché non sono testati. Documenta ogni parametro rilevante in `docs/structure_review.md` o in una nota dedicata.
-4. **Mission runner ROS 2**: integra nuove funzionalità dentro `ros2_ws/src/overrack_mission`. Aggiorna `package.xml`, `setup.py` e aggiungi test/launch file se introdotti topic aggiuntivi.
-5. **Documentazione**: ogni modifica sostanziale (nuovo script, variazione del flow di lancio, cambio del mondo) deve essere riflessa sia nel README sia nel report in `docs/structure_review.md`. Mantieni `docs/ROS2_MIGRATION.md` allineato quando cambi architettura bridge.
+## Contributions & Conventions
+1. **New scripts**: keep descriptive prefixes (`run_`, `launch_`, `fix_`) and document usage in the README and `docs/structure_review.md`. Handle `PX4_DIR`, `ROS2_WS`, and env vars consistently with existing scripts.
+2. **Models & worlds**: add new assets under `models/<name>` with `model.config` + `model.sdf` and update the world or create a dedicated `.world`. Document which world/model to use in the README.
+3. **PX4 parameters**: work on copies of `px4_sitl.params`; do not enable automatic loading until tested. Document relevant parameters in `docs/structure_review.md` or a dedicated note.
+4. **ROS 2 mission runner**: add new functionality inside `ros2_ws/src/overrack_mission`. Update `package.xml`, `setup.py`, and add tests/launch files if extra topics are introduced.
+5. **Documentation**: any substantial change (new script, launch flow change, world swap) must be reflected both in this README and in the report in `docs/structure_review.md`. Keep `docs/ROS2_MIGRATION.md` aligned when altering the bridge architecture.
 
-Per i dettagli completi sulla struttura e sui componenti legacy consulta `docs/structure_review.md` aggiornato.
+For the full structure and legacy component details, see the updated `docs/structure_review.md`.

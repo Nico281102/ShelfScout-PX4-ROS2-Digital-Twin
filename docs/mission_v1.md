@@ -70,11 +70,11 @@ Inspection inserts a dedicated stage after each hover so that `inspection_node.p
 inspection:
   enable: true              # default false
   timeout_s: 4.0            # maximum dwell time awaiting inspection result
-  require_ack: false        # optional; if true mission waits for explicit OK/SUSPECT/LOW_LIGHT
+  require_ack: false        # optional; if true mission waits for explicit OK/SUSPECT (LOW_LIGHT only toggles the torch)
   image_topic: /camera/image_raw  # overrides default ROS topic for the node
 ```
 - When disabled, the mission runner simply respects `hover_time_s` and advances.
-- When enabled, the inspector publishes `overrack/inspection` events that can trigger fallback actions (see below) or enrich mission metrics.
+- When enabled, the inspector publishes `overrack/inspection` events that feed metrics and torch control; they no longer trigger FSM fallbacks.
 - Setting `require_ack` to `true` forces the FSM to wait for an inspection verdict (or timeout) before advancing to the next waypoint.
 
 ## Fallback Triggers and Actions
@@ -84,15 +84,12 @@ Fallback entries map trigger names to ordered lists of actions:
 fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
-  low_light: ["increase_hover:2s"]
-  link_lost: ["hold:5s", "land"]
 ```
 
 ### Supported Triggers
 - `battery_warning`, `battery_critical` – derived from PX4 `BatteryStatus` thresholds.
-- `low_light`, `suspect`, `ok` – emitted by `inspection_node.py`.
-- `link_lost` – raised when telemetry reports missing heartbeat or nav updates.
-- Custom triggers – any string published on `overrack/inspection` or `overrack/mission_state` can be matched, enabling future extensions without breaking the schema.
+- Link-loss is handled directly by PX4 failsafes when Offboard setpoints stop; any `link_lost` entries in a mission file are ignored by the FSM.
+- Inspection events (`OK`, `SUSPECT`, `LOW_LIGHT`) do not start fallbacks; `LOW_LIGHT` only toggles the torch via `torch_controller`.
 
 ### Supported Actions
 | Action | Effect |
@@ -132,7 +129,6 @@ inspection:
 fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
-  low_light: ["hold:5s", "increase_hover:2s"]
 land_on_finish: true
 ```
 
@@ -177,7 +173,7 @@ The ROS 2 package `overrack_mission` exposes three primary entry points via `col
 2. `MissionController` translates waypoints into PX4 Offboard setpoints (`/fmu/in/vehicle_local_position_setpoint`, `/fmu/in/trajectory_setpoint`).
 3. `MissionStateMachine` enforces the phase progression (ARM → TAKEOFF → TRANSIT → HOVER/INSPECT → HOLD/RETURN) and calls fallback handlers when triggers fire.
 4. Telemetry helpers (`px4io/telemetry.py`) subscribe to PX4 topics such as `/fmu/out/vehicle_status`, `/fmu/out/vehicle_local_position`, `/fmu/out/battery_status` to gate transitions (arming allowed, offboard ready, battery thresholds, heartbeat timeout).
-5. When `inspection.enable` is true, the state machine notifies `inspection_node`, which publishes verdicts on `overrack/inspection`. Those verdicts can satisfy `require_ack`, extend hovers, or trigger fallback actions defined in the YAML.
+5. When `inspection.enable` is true, the state machine notifies `inspection_node`, which publishes verdicts on `overrack/inspection`. Those verdicts can satisfy `require_ack` and feed torch/metrics consumers; they no longer trigger FSM fallbacks.
 6. `mission_metrics` listens to both mission state and inspection streams, recording per-phase timing plus the final outcome; files are written to `data/metrics/<timestamp>/` when the mission ends.
 
 ### Step Semantics and Stabilization Logic
@@ -212,13 +208,12 @@ Missions that require perfectly steady captures can encode a two-step convention
 
 Relevant ROS parameters:
 - `mission_file` (string, default `config/mission.yaml`): path to the YAML plan. Overridden via `--ros-args -p mission_file:=...` in `run_ros2_system.sh`.
+- `sim.disable_link_after_s` (float, default `-1.0`): `<0` disables link-loss simulation, `0` triggers immediately, `>0` triggers after N seconds by stopping Offboard setpoints/heartbeats so PX4 native failsafe engages.
 - `image_topic` (string): forwarded to `inspection_node` to match your camera stream.
 - `agent_cmd` (string): handled outside of ROS but documented in `.env` as `SSDT_AGENT_CMD` for consistency.
 
 ### Fallback and Events
-Fallback triggers arrive from two channels:
-- Telemetry-derived events (`battery_warning`, `link_lost`, `avoidance`) raised inside `mission_runner`.
-- External events published on `/overrack/inspection` or `/overrack/mission_state/events` (e.g., perception verdicts).
+Fallback triggers are telemetry-derived events raised inside `mission_runner` (`battery_warning`, `battery_critical`). Link loss is not modelled as a fallback; PX4’s native failsafe takes over if Offboard setpoints stop. Inspection verdicts on `/overrack/inspection` do not alter the FSM; `LOW_LIGHT` is reserved for torch control only.
 
 Actions specified in the YAML are executed by the `MissionStateMachine` as synchronous routines. The controller inhibits new setpoints while actions marked as blocking (`return_home`, `land`) are running to avoid conflicting commands. Non-blocking actions (`hold`, `increase_hover`) simply adjust timers and resume the nominal mission.
 

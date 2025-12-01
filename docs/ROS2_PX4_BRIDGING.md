@@ -1,16 +1,35 @@
 # PX4 ↔ ROS 2 Bridging
-This document explains the PX4 ↔ Micro XRCE-DDS ↔ ROS 2 bridge used in OverRack Scan, including message flows, agent settings, and troubleshooting steps.
+This document explains the PX4 ↔ Micro XRCE-DDS ↔ ROS 2 bridge used in the project, including message flows, agent settings, and troubleshooting steps.
 
 ## Architecture
+The bridge translates PX4 uORB messages into ROS 2 topics via Micro XRCE-DDS. It is the only ROS/DDS touchpoint; the rest of the architecture is covered in `docs/architecture.md`.
+
+```mermaid
+flowchart LR
+    subgraph Sim["Gazebo Classic + PX4 SITL"]
+        GZ["Gazebo Classic world"]
+        PX4["PX4 SITL<br>(gazebo-classic_iris_opt_flow)"]
+        RTPS["micrortps_client<br>UDP 2019/2020"]
+        GZ --> PX4
+        PX4 --> RTPS
+    end
+
+
+    subgraph Bridge["Micro XRCE-DDS Agent"]
+        AGENT[MicroXRCEAgent\nudp4 -p 8888]
+    end
+
+    subgraph ROS2["ROS 2 (Fast DDS)"]
+        RCL[Fast DDS graph]
+        NODES[mission_runner\ninspection_node\nmetrics_node]
+        RCL --> NODES
+        NODES --> RCL
+    end
+
+    RTPS -- XRCE session --> AGENT
+    AGENT -- DDS topics (/fmu/in,out) --> RCL
 ```
-PX4 SITL (px4_sitl_default + micrortps_client)
-    ↕  UDP 2019 (PX4→Agent) / 2020 (Agent→PX4)
-Micro XRCE-DDS Agent (MicroXRCEAgent udp4 -p 8888 -v 6)
-    ↕  DDS (Fast DDS XRCE session)
-ROS 2 Workspace (overrack_mission, px4_msgs, px4_ros_com)
-    ↕  Local DDS graph
-Mission Runner / Inspection / Metrics nodes
-```
+
 - PX4 builds and launches `micrortps_client` alongside SITL; it serialises uORB topics over UDP ports 2019 (TX) and 2020 (RX).
 - `MicroXRCEAgent` translates those UDP frames into DDS XRCE sessions on port 8888. Multiple ROS 2 participants can subscribe via Fast DDS once the agent is running.
 - ROS 2 nodes built against `px4_msgs` publish to `/fmu/in/*` topics and subscribe to `/fmu/out/*`, matching PX4 QoS (`BEST_EFFORT`, depth 1).
@@ -19,6 +38,12 @@ Mission Runner / Inspection / Metrics nodes
 - **PX4 SITL**: started through `scripts/launch_px4_gazebo.sh`. The relevant binaries live in `PX4_DIR/build/px4_sitl_default/` and include the generated `micrortps_client`.
 - **Micro XRCE-DDS Agent**: either installed system-wide or referenced through `MICRO_XRCE_AGENT_DIR`. `scripts/run_ros2_system.sh` spawns it with the command supplied via `--agent-cmd` (default `MicroXRCEAgent udp4 -p 8888 -v 6`).
 - **ROS 2 Workspace (`ros2_ws`)**: houses `px4_msgs`, `px4_ros_com`, and `overrack_mission`. After sourcing `ros2_ws/install/setup.bash`, any ROS 2 node can interact with PX4 topics using the shared message definitions.
+
+## Bridge Lifecycle
+1. `scripts/launch_px4_gazebo.sh` starts PX4 with `micrortps_client` enabled so PX4 emits RTPS frames on 2019/2020.
+2. `scripts/run_ros2_system.sh` launches the agent with the command from `sim.yaml` (`ssdt.agent_cmd`) and tails its output to `data/logs/micro_xrce_agent.out`.
+3. Once the agent establishes the XRCE session, Fast DDS discovery exposes `/fmu/in/*` and `/fmu/out/*` to the ROS graph. `mission_runner` waits for `/fmu/out/vehicle_status` before entering Offboard.
+4. If PX4 updates add or remove topics, rebuild PX4 (`make px4_sitl_default`) so the generated `micrortps_client` and `px4_msgs` stay in sync.
 
 ## Message Flows
 ### PX4 → ROS 2 (`/fmu/out/*`)

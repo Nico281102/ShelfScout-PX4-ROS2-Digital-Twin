@@ -30,8 +30,6 @@ inspection:
 fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
-  low_light: ["increase_hover:2s"]
-  link_lost: ["hold:5s", "land"]
 
 avoidance: stop
 ignore_gps: true
@@ -50,6 +48,8 @@ land_on_finish: false
   * `hold:5s` – hold position for the given duration.
   * `increase_hover:2s` – extend the current/next hover window.
 
-Triggers currently recognised: `battery_warning`, `battery_critical`,
-`low_light`, `link_lost`. Additional triggers may be added later without
+Triggers currently recognised: `battery_warning`, `battery_critical`. Link loss
+is handled by PX4 failsafes when Offboard setpoints stop; any `link_lost`
+entries are ignored. `LOW_LIGHT` is kept for torch control only and no longer
+starts mission fallbacks. Additional triggers may be added later without
 breaking compatibility.
