@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand
 
 from ..core.bounds import NedBounds
+from .topics import namespaced
 from .qos import CONTROL_QOS
 
 if TYPE_CHECKING:
@@ -17,13 +18,37 @@ if TYPE_CHECKING:
 class SetpointPublisher:
     """Wraps the publishers used to drive PX4 in offboard mode."""
 
-    def __init__(self, node, telemetry: "Telemetry", bounds: Optional[NedBounds] = None) -> None:
+    def __init__(
+        self,
+        node,
+        telemetry: "Telemetry",
+        bounds: Optional[NedBounds] = None,
+        *,
+        vehicle_ns: str = "",
+        vehicle_id: int = 1,
+        px4_namespace: str = "",
+    ) -> None:
         self._node = node
         self._telemetry = telemetry
         self._bounds = bounds
-        self._offboard_pub = node.create_publisher(OffboardControlMode, "/fmu/in/offboard_control_mode", CONTROL_QOS)
-        self._trajectory_pub = node.create_publisher(TrajectorySetpoint, "/fmu/in/trajectory_setpoint", CONTROL_QOS)
-        self._vehicle_command_pub = node.create_publisher(VehicleCommand, "/fmu/in/vehicle_command", CONTROL_QOS)
+        self._vehicle_ns = vehicle_ns or ""
+        self._vehicle_id = int(vehicle_id) if vehicle_id is not None else 1
+        self._px4_ns = (px4_namespace or "").strip("/")
+        self._offboard_pub = node.create_publisher(
+            OffboardControlMode,
+            namespaced("fmu/in/offboard_control_mode", namespace=self._px4_ns),
+            CONTROL_QOS,
+        )
+        self._trajectory_pub = node.create_publisher(
+            TrajectorySetpoint,
+            namespaced("fmu/in/trajectory_setpoint", namespace=self._px4_ns),
+            CONTROL_QOS,
+        )
+        self._vehicle_command_pub = node.create_publisher(
+            VehicleCommand,
+            namespaced("fmu/in/vehicle_command", namespace=self._px4_ns),
+            CONTROL_QOS,
+        )
         self._bootstrap_logs = 0
         self._bootstrap_mode = True
         self._link_loss_simulated = False
@@ -78,9 +103,9 @@ class SetpointPublisher:
         msg.command = command
         msg.param1 = param1
         msg.param2 = param2
-        msg.target_system = 1
+        msg.target_system = self._vehicle_id
         msg.target_component = 1
-        msg.source_system = 1
+        msg.source_system = self._vehicle_id
         msg.source_component = 1
         msg.from_external = True
         self._vehicle_command_pub.publish(msg)

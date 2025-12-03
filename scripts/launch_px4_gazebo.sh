@@ -31,6 +31,9 @@ fi
 
 HEADLESS=0
 WORLD_OPT=""
+INSTANCE_ID=""
+MODEL_NAME_OVERRIDE=""
+MODEL_POSE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --headless)
@@ -39,6 +42,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --world)
       WORLD_OPT=${2:-}
+      shift 2
+      ;;
+    --id|--instance)
+      INSTANCE_ID=${2:-}
+      shift 2
+      ;;
+    --model-name)
+      MODEL_NAME_OVERRIDE=${2:-}
+      shift 2
+      ;;
+    --model-pose)
+      MODEL_POSE=${2:-}
       shift 2
       ;;
     *)
@@ -73,6 +88,9 @@ BUILD_TARGET="px4_sitl_default"
 BUILD_DIR="$PX4_DIR/build/${BUILD_TARGET}"
 mkdir -p "$ROOT_DIR/data/logs"
 LOG_FILE="${PX4_SITL_LOG_FILE:-$ROOT_DIR/data/logs/${BUILD_TARGET}.out}"
+if [[ -n "$INSTANCE_ID" && -z "${PX4_SITL_LOG_FILE:-}" ]]; then
+  LOG_FILE="$ROOT_DIR/data/logs/${BUILD_TARGET}_${INSTANCE_ID}.out"
+fi
 mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 
@@ -116,6 +134,15 @@ export PX4_SIMULATOR="gazebo-classic"
 export PX4_SIM_MODEL="${PX4_SIM_MODEL:-iris_opt_flow}"
 
 echo "[launch_px4_gazebo] simulator=$PX4_SIMULATOR  model=$PX4_SIM_MODEL"
+if [[ -n "$INSTANCE_ID" ]]; then
+  echo "[launch_px4_gazebo] PX4_INSTANCE=$INSTANCE_ID"
+fi
+if [[ -n "$MODEL_NAME_OVERRIDE" ]]; then
+  echo "[launch_px4_gazebo] PX4_GZ_MODEL_NAME=$MODEL_NAME_OVERRIDE"
+fi
+if [[ -n "$MODEL_POSE" ]]; then
+  echo "[launch_px4_gazebo] PX4_GZ_MODEL_POSE=$MODEL_POSE"
+fi
 
 
 
@@ -125,8 +152,17 @@ MAKE_ENV=(
   "PX4_SITL_WORLD=$WORLD_PATH"
   "PX4_SIM_MODEL=${PX4_SIM_MODEL:-iris_opt_flow}"
 )
+if [[ -n "$INSTANCE_ID" ]]; then
+  MAKE_ENV+=("PX4_INSTANCE=$INSTANCE_ID")
+fi
 if [[ $HEADLESS -eq 1 ]]; then
   MAKE_ENV+=("HEADLESS=1")
+fi
+if [[ -n "$MODEL_NAME_OVERRIDE" ]]; then
+  MAKE_ENV+=("PX4_GZ_MODEL_NAME=$MODEL_NAME_OVERRIDE")
+fi
+if [[ -n "$MODEL_POSE" ]]; then
+  MAKE_ENV+=("PX4_GZ_MODEL_POSE=$MODEL_POSE")
 fi
 
 cleanup() {
@@ -144,4 +180,3 @@ cd "$PX4_DIR"
 stdbuf -oL -eL env "${MAKE_ENV[@]}" \
   make "${BUILD_TARGET}" "gazebo-classic_${PX4_SIM_MODEL}" \
   | sed -u "s/^/[px4] /" | tee "$LOG_FILE"
-

@@ -1,0 +1,70 @@
+# Esempio di configurazione multi-drone (usare con --params sim_multi.yaml)
+run_ros2_system:
+  ros__parameters:
+    world_file: worlds/overrack_indoor.world
+    agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4
+    # Blob YAML serializzato per evitare limiti rcl su liste di mappe
+    drones_yaml: |
+      - name: drone1
+        namespace: drone1
+        model: iris_opt_flow
+        spawn: {x: 2.5, y: 1.5, z: 0.3, yaw: -1.57}
+        mission_file: config/mission_precomputed.yaml
+        mav_sys_id: 1
+        mavlink_udp_port: 14540
+        agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
+        px4_params: { SIM_BAT_DRAIN: 20.0 }
+        px4_namespace: ""
+        log_dir: data/logs/drone1
+
+      - name: drone2
+        namespace: drone2
+        model: iris_opt_flow
+        spawn: {x: -2.5, y: -1.5, z: 0.3, yaw: 1.57}
+        mission_file: config/mission_precomputed.yaml
+        mav_sys_id: 2
+        mavlink_udp_port: 14550
+        agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
+        px4_params: { SIM_BAT_DRAIN: 25.0 }
+        px4_namespace: ""
+        log_dir: data/logs/drone2
+
+mission_runner:
+  ros__parameters:
+    mission_file: config/mission_precomputed.yaml
+    gazebo_model_name: iris_opt_flow
+    world_bounds.x: [-5.0, 5.0]
+    world_bounds.y: [-4.0, 4.0]
+    world_bounds.z: [-3.0, -0.1]
+    cruise_speed_limits: [0.2, 2.0]
+    debug_frames: true
+    return_home_safe_z: 2.0
+    sim.disable_link_after_s: 30.0
+
+inspection_node:
+  ros__parameters:
+    image_topic: overrack/iris/front_camera/image_raw
+    low_light_threshold: 90.0
+    suspect_variance: 12.0
+    publish_period_s: 0.5
+
+torch_controller:
+  ros__parameters:
+    command_topic: overrack/torch_enable
+    startup_on: false
+    min_on_seconds: 10.0
+
+px4_param_setter:
+  ros__parameters:
+    mavlink_url: udp://:14540
+    px4_params:
+      SIM_BAT_DRAIN: 20.0
+      SIM_BAT_MIN_PCT: 0.03
+      BAT1_N_CELLS: 3
+      BAT1_V_CHARGED: 4.15
+      BAT1_V_EMPTY: 3.55
+      BAT1_CAPACITY: 3500.0
+      BAT_LOW_THR: 0.25
+      BAT_CRIT_THR: 0.15
+      BAT_EMERGEN_THR: 0.08
+      COM_LOW_BAT_ACT: 0

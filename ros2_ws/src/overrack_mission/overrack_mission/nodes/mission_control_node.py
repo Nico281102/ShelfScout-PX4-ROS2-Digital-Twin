@@ -22,17 +22,18 @@ from ..core import (
 )
 from ..core.fsm import MissionRuntime
 from ..px4io import SetpointPublisher, Telemetry
+from ..px4io.topics import namespaced
 from ..px4io.qos import EVENTS_QOS
 
 
 class RosMissionRuntime(MissionRuntime):
     """Concrete MissionRuntime backed by rclpy."""
 
-    def __init__(self, node: Node, telemetry: Telemetry, setpoints: SetpointPublisher) -> None:
+    def __init__(self, node: Node, telemetry: Telemetry, setpoints: SetpointPublisher, *, state_topic: str) -> None:
         self._node = node
         self._telemetry = telemetry
         self._setpoints = setpoints
-        self._state_pub = node.create_publisher(String, "overrack/mission_state", EVENTS_QOS)
+        self._state_pub = node.create_publisher(String, state_topic, EVENTS_QOS)
 
     @property
     def logger(self):
@@ -66,6 +67,18 @@ class MissionControlNode(Node):
             raise RuntimeError("Parameter 'mission_file' must point to a mission YAML file")
         self.get_logger().info(f"Loading mission from {mission_path}")
 
+        self._vehicle_ns = (
+            self.declare_parameter("vehicle_ns", "").get_parameter_value().string_value.strip()
+        )
+        self._vehicle_id = int(self.declare_parameter("vehicle_id", 1).value)
+        if self._vehicle_ns:
+            self.get_logger().info(f"Vehicle namespace: {self._vehicle_ns} (id={self._vehicle_id})")
+        else:
+            self.get_logger().info(f"Vehicle id={self._vehicle_id} (no namespace)")
+        self._px4_namespace = (
+            self.declare_parameter("px4_namespace", "").get_parameter_value().string_value.strip().strip("/")
+        )
+
         ned_bounds = self._load_world_bounds()
         cruise_limits = self._load_cruise_speed_limits()
         debug_frames = bool(self.declare_parameter("debug_frames", False).value)
@@ -84,11 +97,28 @@ class MissionControlNode(Node):
         self._link_loss_after_s = float(self.declare_parameter(self._link_loss_after_param, -1.0).value)
         self._link_loss_triggered = False
         self._sim_start_time = self.get_clock().now().nanoseconds / 1e9
-        telemetry = Telemetry(self, gazebo_model=gazebo_model)
-        setpoints = SetpointPublisher(self, telemetry, ned_bounds)
+        telemetry = Telemetry(
+            self,
+            gazebo_model=gazebo_model,
+            vehicle_ns=self._vehicle_ns,
+            px4_namespace=self._px4_namespace,
+        )
+        setpoints = SetpointPublisher(
+            self,
+            telemetry,
+            ned_bounds,
+            vehicle_ns=self._vehicle_ns,
+            vehicle_id=self._vehicle_id,
+            px4_namespace=self._px4_namespace,
+        )
         self._setpoints = setpoints
         self._configure_link_loss_after(self._link_loss_after_s)
-        runtime = RosMissionRuntime(self, telemetry, setpoints)
+        runtime = RosMissionRuntime(
+            self,
+            telemetry,
+            setpoints,
+            state_topic=namespaced("overrack/mission_state", namespace=self._vehicle_ns),
+        )
 
         try:
             self._controller = MissionController(

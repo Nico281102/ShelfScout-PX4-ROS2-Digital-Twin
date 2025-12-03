@@ -18,6 +18,7 @@ from std_msgs.msg import String
 from px4_msgs.msg import BatteryStatus, VehicleLocalPosition, VehicleStatus
 
 from ..core.fsm import LocalPosition
+from .topics import namespaced
 from .qos import EVENTS_QOS, TELEMETRY_QOS, GAZEBO_QOS
 
 
@@ -39,8 +40,17 @@ class SpawnSyncState(Enum):
 class Telemetry:
     """Collects PX4 telemetry topics and exposes convenience accessors."""
 
-    def __init__(self, node, *, gazebo_model: str = "iris_opt_flow") -> None:
+    def __init__(
+        self,
+        node,
+        *,
+        gazebo_model: str = "iris_opt_flow",
+        vehicle_ns: str = "",
+        px4_namespace: str = "",
+    ) -> None:
         self._node = node
+        self._vehicle_ns = vehicle_ns or ""
+        self._px4_ns = (px4_namespace or "").strip("/")
 
         # PX4 data
         self._local_position: Optional[LocalPosition] = None
@@ -71,25 +81,25 @@ class Telemetry:
         # Subscriptions
         node.create_subscription(
             VehicleLocalPosition,
-            "/fmu/out/vehicle_local_position",
+            namespaced("fmu/out/vehicle_local_position", namespace=self._px4_ns),
             self._on_local_position,
             TELEMETRY_QOS,
         )
         node.create_subscription(
             VehicleStatus,
-            "/fmu/out/vehicle_status",
+            namespaced("fmu/out/vehicle_status", namespace=self._px4_ns),
             self._on_vehicle_status,
             TELEMETRY_QOS,
         )
         node.create_subscription(
             BatteryStatus,
-            "/fmu/out/battery_status",
+            namespaced("fmu/out/battery_status", namespace=self._px4_ns),
             self._on_battery_status,
             TELEMETRY_QOS,
         )
         node.create_subscription(
             String,
-            "overrack/inspection",
+            namespaced("overrack/inspection", namespace=self._vehicle_ns),
             self._on_inspection_event,
             EVENTS_QOS,
         )

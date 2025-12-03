@@ -8,6 +8,7 @@ from rclpy.node import Node
 from px4_msgs.msg import VehicleStatus
 
 from ..px4io.qos import TELEMETRY_QOS
+from ..px4io.topics import namespaced
 
 
 Numeric = Union[int, float]
@@ -24,7 +25,19 @@ class PX4ParamSetter(Node):
         )
 
         self._px4_params: Dict[str, Numeric] = self._load_px4_params()
-        # Gestione sicura del parametro mavlink_url (evita doppia dichiarazione)
+        # Gestione sicura dei parametri che potrebbero essere già presenti come override
+        if self.has_parameter("vehicle_ns"):
+            self._vehicle_ns = str(self.get_parameter("vehicle_ns").value or "").strip()
+        else:
+            self._vehicle_ns = ""
+            self.declare_parameter("vehicle_ns", self._vehicle_ns)
+
+        if self.has_parameter("px4_namespace"):
+            self._px4_namespace = str(self.get_parameter("px4_namespace").value or "").strip().strip("/")
+        else:
+            self._px4_namespace = ""
+            self.declare_parameter("px4_namespace", self._px4_namespace)
+
         if self.has_parameter("mavlink_url"):
             self._mavlink_url = self.get_parameter("mavlink_url").value
         else:
@@ -33,10 +46,11 @@ class PX4ParamSetter(Node):
 
         self._connection_thread: Optional[threading.Thread] = None
         self._started = False
+        self._active = True
 
         if not self._px4_params:
             self.get_logger().info("Nessun parametro PX4 trovato nel YAML (px4_params.*)")
-            rclpy.shutdown()
+            self._active = False
             return
 
         self.get_logger().info(
@@ -45,7 +59,7 @@ class PX4ParamSetter(Node):
 
         self._status_sub = self.create_subscription(
             VehicleStatus,
-            "/fmu/out/vehicle_status",
+            namespaced("fmu/out/vehicle_status", namespace=self._px4_namespace),
             self._on_vehicle_status,
             TELEMETRY_QOS,
         )
@@ -132,7 +146,16 @@ class PX4ParamSetter(Node):
 def main():
     rclpy.init()
     node = PX4ParamSetter()
-    rclpy.spin(node)
+    try:
+        if getattr(node, "_active", True):
+            rclpy.spin(node)
+    finally:
+        if node is not None:
+            try:
+                node.destroy_node()
+            except Exception:
+                pass
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
