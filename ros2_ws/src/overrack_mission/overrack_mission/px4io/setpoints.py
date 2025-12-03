@@ -52,6 +52,8 @@ class SetpointPublisher:
         self._bootstrap_logs = 0
         self._bootstrap_mode = True
         self._link_loss_simulated = False
+        self._fallback_sysid_warned = False
+        self._logged_system_id: Optional[int] = None
 
     def send_offboard_control_mode(self) -> None:
         if self._link_loss_simulated:
@@ -103,9 +105,10 @@ class SetpointPublisher:
         msg.command = command
         msg.param1 = param1
         msg.param2 = param2
-        msg.target_system = self._vehicle_id
+        sysid = self._resolve_system_id()
+        msg.target_system = sysid
         msg.target_component = 1
-        msg.source_system = self._vehicle_id
+        msg.source_system = sysid
         msg.source_component = 1
         msg.from_external = True
         self._vehicle_command_pub.publish(msg)
@@ -166,5 +169,25 @@ class SetpointPublisher:
 
     def _now_us(self) -> int:
         return int(self._node.get_clock().now().nanoseconds / 1000)
+
+    def _resolve_system_id(self) -> int:
+        sysid = self._telemetry.system_id()
+        if sysid is not None:
+            sysid_int = int(sysid)
+            if sysid_int != self._logged_system_id and sysid_int != self._vehicle_id:
+                self._node.get_logger().info(
+                    "Using PX4 system_id=%d (configured vehicle_id=%d)" % (sysid_int, self._vehicle_id)
+                )
+            self._logged_system_id = sysid_int
+            return sysid_int
+
+        if not self._fallback_sysid_warned:
+            self._node.get_logger().warn(
+                "PX4 system_id not yet available; using configured vehicle_id=%d for commands"
+                % self._vehicle_id
+            )
+            self._fallback_sysid_warned = True
+        return self._vehicle_id
+
     def set_bootstrap_mode(self, enabled: bool) -> None:
         self._bootstrap_mode = bool(enabled)

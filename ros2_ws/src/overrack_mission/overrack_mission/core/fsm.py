@@ -17,12 +17,10 @@ VEHICLE_CMD_NAV_LAND = 21
 # Triggers and action names (centralized to avoid typos)
 TRIGGER_BATTERY_WARNING: Final = "battery_warning"
 TRIGGER_BATTERY_CRITICAL: Final = "battery_critical"
-TRIGGER_LINK_LOST: Final = "link_lost"
 TRIGGER_INTERNAL: Final = "_internal_"
 
 FALLBACK_PRIORITY: Final[dict[str, int]] = {
     TRIGGER_BATTERY_CRITICAL: 3,
-    TRIGGER_LINK_LOST: 2,
     TRIGGER_BATTERY_WARNING: 1,
     TRIGGER_INTERNAL: -1,
 }
@@ -99,6 +97,8 @@ class TelemetryProto(Protocol):
     def local_position(self) -> Optional[LocalPosition]: ...
 
     def vehicle_status(self): ...  # pragma: no cover - passthrough for compatibility
+
+    def system_id(self) -> Optional[int]: ...  # pragma: no cover - passthrough for compatibility
 
     def battery_status(self): ...  # pragma: no cover - passthrough for compatibility
 
@@ -790,12 +790,6 @@ class FallbackEvaluator:
     def __init__(self, ctx: MissionContext) -> None:
         self._ctx = ctx
         self._latched_triggers: set[str] = set()
-        if "link_lost" in self._ctx.plan.fallback:
-            self._ctx.logger.warn("Ignoring 'link_lost' fallback actions; PX4 failsafes own link-loss handling")
-            try:
-                self._ctx.plan.fallback.pop("link_lost", None)
-            except Exception:
-                pass
         if "low_light" in self._ctx.plan.fallback:
             self._ctx.logger.warn("Ignoring 'low_light' fallback actions; low-light is handled by torch control only")
             try:

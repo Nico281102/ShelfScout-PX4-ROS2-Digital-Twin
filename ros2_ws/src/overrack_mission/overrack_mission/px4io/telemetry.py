@@ -55,6 +55,7 @@ class Telemetry:
         # PX4 data
         self._local_position: Optional[LocalPosition] = None
         self._vehicle_status: Optional[VehicleStatus] = None
+        self._system_id: Optional[int] = None
         self._battery_status: Optional[BatteryStatus] = None
         self._last_battery_warning: Optional[int] = None
 
@@ -141,6 +142,11 @@ class Telemetry:
     def _on_vehicle_status(self, msg: VehicleStatus) -> None:
         previous = self._vehicle_status
         self._vehicle_status = msg
+        sys_id = getattr(msg, "system_id", None)
+        if sys_id:
+            if sys_id != self._system_id:
+                self._node.get_logger().info(f"PX4 system_id detected: {sys_id}")
+            self._system_id = sys_id
 
         if previous is None or previous.nav_state != msg.nav_state:
             if self.is_offboard_active():
@@ -236,6 +242,9 @@ class Telemetry:
 
     def vehicle_status(self) -> Optional[VehicleStatus]:
         return self._vehicle_status
+
+    def system_id(self) -> Optional[int]:
+        return self._system_id
 
     def battery_status(self) -> Optional[BatteryStatus]:
         return self._battery_status
