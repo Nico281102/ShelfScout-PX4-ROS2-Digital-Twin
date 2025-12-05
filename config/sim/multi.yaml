@@ -13,7 +13,7 @@ run_ros2_system:
         mavlink_udp_port: 14541
         agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
         px4_params:
-          SIM_BAT_DRAIN: 60.0
+          SIM_BAT_DRAIN: 91.0
           SIM_BAT_MIN_PCT: 0.03
           BAT1_N_CELLS: 3
           BAT1_V_CHARGED: 4.15
@@ -34,7 +34,7 @@ run_ros2_system:
         mavlink_udp_port: 14542
         agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
         px4_params:
-          SIM_BAT_DRAIN: 90.0
+          SIM_BAT_DRAIN: 61.0
           SIM_BAT_MIN_PCT: 0.03
           BAT1_N_CELLS: 3
           BAT1_V_CHARGED: 4.15

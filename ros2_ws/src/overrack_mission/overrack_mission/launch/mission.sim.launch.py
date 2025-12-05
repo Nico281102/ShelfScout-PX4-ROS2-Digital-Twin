@@ -193,7 +193,7 @@ def generate_launch_description() -> LaunchDescription:
                 inspection_params = {"vehicle_ns": ns}
                 metrics_params = {"vehicle_ns": ns}
                 torch_params = {"vehicle_ns": ns}
-                param_setter_params = {"vehicle_ns": ns, "mavlink_url": mavlink_url}
+                param_setter_params = {"vehicle_ns": ns, "mavlink_url": mavlink_url, "px4_namespace": px4_ns}
                 if isinstance(drone.get("px4_params"), dict):
                     param_setter_params["px4_params"] = drone["px4_params"]
 
