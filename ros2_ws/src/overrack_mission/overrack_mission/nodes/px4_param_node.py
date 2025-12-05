@@ -136,14 +136,21 @@ class PX4ParamSetter(Node):
         for name, value in self._px4_params.items():
             try:
                 setter = drone.param.set_param_float
+                getter = drone.param.get_param_float
                 cast_value: Numeric = value
                 if isinstance(value, bool):
                     setter = drone.param.set_param_int
+                    getter = drone.param.get_param_int
                     cast_value = int(value)
                 elif isinstance(value, int):
                     setter = drone.param.set_param_int
+                    getter = drone.param.get_param_int
                 await setter(name, cast_value)  # type: ignore[arg-type]
-                self.get_logger().info(f"Parametro impostato: {name} = {cast_value}")
+                try:
+                    current = await getter(name)  # type: ignore[misc]
+                    self.get_logger().info(f"Parametro impostato: {name} = {cast_value} (letto={current})")
+                except Exception:
+                    self.get_logger().info(f"Parametro impostato: {name} = {cast_value}")
             except Exception as exc:  # noqa: BLE001
                 self.get_logger().error(f"Errore impostando {name}: {exc}")
 
