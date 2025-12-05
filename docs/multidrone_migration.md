@@ -73,7 +73,10 @@ metrics:
 
 ## Passi effettivamente realizzati (cronologia sintetica)
 - Centralizzato la configurazione in `config/sim/multi.yaml` con default globali e override per drone (spawn, missione, SYSID, porte, logdir).
+- Spostati i parametri single/multi in `config/sim/default.yaml` e `config/sim/multi.yaml` con fallback legacy nei launcher; le route ora vivono tutte in `config/routes/`.
+- Aggiunte missioni precomputed per i due corridoi (`config/mission_drone1.yaml` con `routes/drone1_shelf_east.yaml`, `config/mission_drone2.yaml` con `routes/drone2_shelf_west.yaml`) e collegate ai rispettivi droni in `config/sim/multi.yaml`.
 - Adeguato `run_ros2_system.sh` e `mission.sim.launch.py` per iterare i blocchi `drones`, creare namespace ROS separati e passare per-drone mission file/parametri/QoS senza duplicare codice.
+- Allineata la risoluzione del nome modello Gazebo in `mission.sim.launch.py` agli alias di `sitl_multiple_run.sh` (iris_opt_flow -> iris, suffix `_k`), così la Telemetry trova il modello corretto e cattura lo spawn offset invece di andare in timeout.
 - Usato `sitl_multiple_run.sh` per PX4 multi-istanza: un solo `gzserver`, spawn offset dal YAML, mapping `iris_opt_flow`→`iris` (limitazione dello script), log separati per istanza.
 - Stabilita l’architettura XRCE: un solo Micro XRCE Agent condiviso, più client PX4 con chiave dedicata e namespace coerente (`/px4_k`), lanciati prima dei nodi ROS per evitare “EKF local position” infinito.
 - Corretto il mismatch SYSID/`target_system`: Telemetry legge `system_id` da `VehicleStatus` e SetpointPublisher lo usa per indirizzare i `VehicleCommand` (fallback a `vehicle_id` con warning), così arming/offboard funzionano per tutte le istanze anche se `sitl_multiple_run` applica l’offset `mavlink_id=1+N`.

@@ -60,6 +60,31 @@ def _default_mavlink_url(config: dict) -> str:
     return _nested(config, ["px4_param_setter", "ros__parameters", "mavlink_url"])
 
 
+SUPPORTED_MULTI_MODELS = {"iris", "plane", "standard_vtol", "rover", "r1_rover", "typhoon_h480"}
+
+
+def _resolve_gazebo_model_name(drone: dict, idx: int, model_default: str) -> str:
+    """Mirror sitl_multiple_run.sh naming so spawn offset detection matches Gazebo."""
+    explicit = str(drone.get("gazebo_model_name") or "").strip()
+    if explicit:
+        return explicit
+
+    base_model = str(
+        drone.get("model")
+        or model_default
+        or "iris"
+    ).strip()
+    if not base_model:
+        base_model = "iris"
+
+    resolved_model = base_model
+    if base_model not in SUPPORTED_MULTI_MODELS:
+        # sitl_multiple_run.sh maps unsupported models (e.g. iris_opt_flow) to iris
+        resolved_model = "iris"
+
+    return f"{resolved_model}_{idx}"
+
+
 def generate_launch_description() -> LaunchDescription:
     pkg_share = Path(get_package_share_directory("overrack_mission"))
     default_params = str(pkg_share / "param" / "sim.yaml")
@@ -137,8 +162,10 @@ def generate_launch_description() -> LaunchDescription:
                     drone.get("namespace")
                     or drone.get("name")
                     or drone.get("vehicle_ns")
-                    or f"drone{idx}"
-                )
+                    or f"px4_{idx}"
+                ).lstrip("/")
+                if not ns:
+                    ns = f"px4_{idx}"
                 vehicle_id = int(drone.get("vehicle_id") or drone.get("mav_sys_id") or idx)
                 px4_ns = str(drone.get("px4_namespace") or "").strip("/").strip()
                 mission_file = (
@@ -147,7 +174,7 @@ def generate_launch_description() -> LaunchDescription:
                     or mission_default
                 )
                 mission_value = str(mission_file) if mission_file else ""
-                gazebo_model = str(drone.get("gazebo_model_name") or model_default)
+                gazebo_model = _resolve_gazebo_model_name(drone, idx, model_default)
                 mavlink_url = str(
                     drone.get("mavlink_url")
                     or (f"udp://:{int(drone.get('mavlink_udp_port'))}" if drone.get("mavlink_udp_port") else "")
