@@ -36,12 +36,12 @@ flowchart LR
 
 ## Component Responsibilities
 - **PX4 SITL**: started through `scripts/launch_px4_gazebo.sh`. The relevant binaries live in `PX4_DIR/build/px4_sitl_default/` and include the generated `micrortps_client`.
-- **Micro XRCE-DDS Agent**: either installed system-wide or referenced through `MICRO_XRCE_AGENT_DIR`. `scripts/run_ros2_system.sh` spawns it with the command supplied via `--agent-cmd` (default `MicroXRCEAgent udp4 -p 8888 -v 6`).
+- **Micro XRCE-DDS Agent**: either installed system-wide or referenced through `MICRO_XRCE_AGENT_DIR`. `scripts/run_ros2_system.sh` spawns it with the command supplied in `config/sim/default.yaml` (overridable via env; default `MicroXRCEAgent udp4 -p 8888 -v 6`).
 - **ROS 2 Workspace (`ros2_ws`)**: houses `px4_msgs`, `px4_ros_com`, and `overrack_mission`. After sourcing `ros2_ws/install/setup.bash`, any ROS 2 node can interact with PX4 topics using the shared message definitions.
 
 ## Bridge Lifecycle
 1. `scripts/launch_px4_gazebo.sh` starts PX4 with `micrortps_client` enabled so PX4 emits RTPS frames on 2019/2020.
-2. `scripts/run_ros2_system.sh` launches the agent with the command from `sim.yaml` (`ssdt.agent_cmd`) and tails its output to `data/logs/micro_xrce_agent.out`.
+2. `scripts/run_ros2_system.sh` launches the agent with the command from `config/sim/default.yaml` (`ssdt.agent_cmd`) and tails its output to `data/logs/micro_xrce_agent.out`.
 3. Once the agent establishes the XRCE session, Fast DDS discovery exposes `/fmu/in/*` and `/fmu/out/*` to the ROS graph. `mission_runner` waits for `/fmu/out/vehicle_status` before entering Offboard.
 4. If PX4 updates add or remove topics, rebuild PX4 (`make px4_sitl_default`) so the generated `micrortps_client` and `px4_msgs` stay in sync.
 

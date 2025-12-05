@@ -5,11 +5,11 @@
 ## Inputs and Defaults
 - **Environment file**: `scripts/.env` (required). Must define at least `SSDT_PX4_DIR` (PX4 checkout) and optionally `SSDT_ROOT`, `SSDT_ROS_WS`, `SSDT_WORLD`, `SSDT_MISSION_FILE`, `SSDT_PARAM_FILE`, `SSDT_AGENT_CMD`, `SSDT_HEADLESS_DEFAULT`. Legacy `SHELFSCOUT_*` keys are also honoured.
 - **CLI flags**: `--gui` or `--headless` (default headless). No other flags are accepted.
-- **Parameter YAML**: defaults to `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml` unless overridden by `SSDT_PARAM_PATH`. The script reads three keys from this file (if present under `run_ros2_system.ros__parameters` or `mission_runner.ros__parameters`):
+- **Parameter YAML**: defaults to `config/sim/default.yaml` unless overridden by `SSDT_PARAM_PATH` (falls back to the legacy `ros2_ws/.../param/sim.yaml` if the new file is missing). The script reads three keys from this file (if present under `run_ros2_system.ros__parameters` or `mission_runner.ros__parameters`):
   - `mission_file`
   - `world_file`
-  - `agent_cmd`
-- **Agent command precedence**: `agent_cmd` in YAML → env overrides (`AGENT_CMD`, `XRCE_AGENT_CMD`, `MICROXRCE_AGENT_CMD`, `MICRORTPS_AGENT_CMD`) → default `MicroXRCEAgent udp4 -p 8888 -v 6`.
+  - `agent_cmd` / `agent_cmd_default` (command line for the Micro XRCE-DDS agent; in multi si usa per-drone)
+- **Agent command precedence**: `agent_cmd` in `drones_yaml` → `agent_cmd_default` in YAML → env overrides (`AGENT_CMD`, `XRCE_AGENT_CMD`, `MICROXRCE_AGENT_CMD`, `MICRORTPS_AGENT_CMD`) → default `MicroXRCEAgent udp4 -p 8888 -v 6`. In multi-drone il launcher avvia un agent per drone con il comando completo (porta inclusa); nel path single-drone parte un solo agent.
 - **World and mission precedence**: values in YAML → env defaults (`SSDT_WORLD`, `SSDT_MISSION_FILE`) → baked-in defaults (`worlds/overrack_indoor.world`, `config/mission_precomputed.yaml`).
 - **Path resolution**: relative paths are resolved against `ROOT_DIR` (from `SSDT_ROOT` or repo root). Absolute paths pass through unchanged.
 
@@ -21,7 +21,7 @@
 5. **Readiness gates**:
    - Waits for `gzserver` to appear (up to 40s).
    - Waits for `Ready for takeoff` in `px4_sitl_default.out` (up to 120s).
-6. **Micro XRCE-DDS Agent**: launches the resolved agent command; logs to `data/logs/micro_xrce_agent.out`.
+6. **Micro XRCE-DDS Agent**: single-drone path lancia un agent unico (log `data/logs/micro_xrce_agent.out`); il path multi avvia un agent per ogni drone (log per-namespace, es. `data/logs/px4_1/micro_xrce_agent.out`).
 7. **Topic wait**: polls for `/fmu/out/vehicle_status` and `/fmu/out/vehicle_local_position` (60s each) to confirm the bridge is alive.
 8. **ROS 2 nodes**: starts `ros2 launch overrack_mission mission.sim.launch.py` with `params_file:=<param>` and `mission_file:=<mission>`; logs to `data/logs/mission_runner.out`.
 9. **Cleanup**: a trap on `INT/TERM/EXIT` stops mission runner, agent, and the PX4/Gazebo process group; it force-kills `gzserver/gzclient` if needed.
@@ -29,11 +29,11 @@
 ## Logs Produced
 - `data/logs/px4_sitl_default.out` – PX4 SITL console (from `PX4_SITL_LOG_FILE`).
 - `data/logs/px4_gazebo.out` – stdout/stderr of `launch_px4_gazebo.sh`.
-- `data/logs/micro_xrce_agent.out` – Micro XRCE-DDS Agent output.
+- `data/logs/micro_xrce_agent.out` – Micro XRCE-DDS Agent output (single drone). In multi i log degli agent sono per-namespace (`data/logs/<ns>/micro_xrce_agent.out`).
 - `data/logs/mission_runner.out` – ROS 2 launch (mission runner + inspection + metrics).
 
 
 
 
 ## Multi-Drone Considerations
-The current script is single-vehicle. We need to extend it.
+Pass `--params config/sim/multi.yaml` (or another multi-drone param file) to declare the drone list via `run_ros2_system.ros__parameters.drones_yaml`; il launcher avvia PX4 istanze, un agent XRCE per drone (usa l’`agent_cmd` per drone o il fallback `agent_cmd_default`), e lancia i nodi ROS namespaced.

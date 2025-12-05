@@ -3,7 +3,7 @@
 Authoring guidelines for the current single-drone mission YAMLs. The canonical schema is in `docs/mission_v1.md`; this page keeps a concise view of what to set, how the FSM interprets it, and what will change once multi-drone support lands.
 
 ## What We Support Today
-- Single vehicle, ENU mission files loaded via `mission_runner.ros__parameters.mission_file` in `overrack_mission/param/sim.yaml`.
+- Single vehicle, ENU mission files loaded via `mission_runner.ros__parameters.mission_file` in `config/sim/default.yaml`.
 - Three modes: `explicit` (inline waypoints), `precomputed` (route file), `coverage` (polygon → planner-generated lanes).
 - Inspection is optional and no longer drives fallbacks; it just gates mission advancement when `require_ack` is set.
 - Fallbacks are limited to battery triggers; link-loss is owned by PX4’s native failsafe when setpoints stop.
@@ -30,7 +30,7 @@ land_on_finish: true
 ```
 - Keep `api_version: 1` to guard parser changes.
 - Waypoints are ENU; Z and yaw default to `defaults.altitude_m` and `defaults.yaw_deg` if present.
-- Missions fail fast when a waypoint breaches `world_bounds` from `sim.yaml` or `cruise_speed_mps` falls outside `cruise_speed_limits`.
+- Missions fail fast when a waypoint breaches `world_bounds` from `config/sim/default.yaml` or `cruise_speed_mps` falls outside `cruise_speed_limits`.
 
 ## Field Checklist
 - `mode`: `explicit`, `precomputed`, or `coverage`. Coverage requires `area.polygon`.
@@ -45,4 +45,4 @@ land_on_finish: true
 
 ## Further Reading
 - Deep-dive, examples, and FSM internals: `docs/mission_v1.md`.
-- Runtime parameters (world, bounds, agent, battery): `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml`.
+- Runtime parameters (world, bounds, agent, battery): `config/sim/default.yaml`.

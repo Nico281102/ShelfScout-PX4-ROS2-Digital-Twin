@@ -35,7 +35,7 @@ These steps prepare the single-drone simulation stack. Multi-drone work is happe
 
 ## Daily Workflow
 1. `source scripts/.env` (or just run `./scripts/run_ros2_system.sh ...` which sources it for you).
-2. Edit `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml` to pick the mission file, world, and agent command. Keep `gazebo_model_name` aligned with your PX4 build.
+2. Edit `config/sim/default.yaml` to pick the mission file, world, and agent command. Keep `gazebo_model_name` aligned with your PX4 build.
 3. If you change anything under `ros2_ws/src/**`, rebuild and re-source:
    ```bash
    cd "$SSDT_ROS_WS"
@@ -45,6 +45,6 @@ These steps prepare the single-drone simulation stack. Multi-drone work is happe
 4. Launch with `./scripts/run_ros2_system.sh --gui` (or `--headless` on CI/SSH). Logs land in `data/logs/` for PX4, the agent, and mission nodes.
 
 ## Notes and Gotchas
-- Battery simulation relies on PX4 parameters pushed by `px4_param_setter` (see `overrack_mission/param/sim.yaml`); Gazebo’s battery plugin is ignored.
+- Battery simulation relies on PX4 parameters pushed by `px4_param_setter` (see `config/sim/default.yaml`); Gazebo’s battery plugin is ignored.
 - If Gazebo cannot find models it may try to download them from Fuel and stall; set `GAZEBO_MODEL_PATH` explicitly or stay online for the first run.
 - Multi-drone will require per-vehicle ports and namespaces; avoid hardcoding ports in scripts—prefer the env-driven defaults in `scripts/.env`.

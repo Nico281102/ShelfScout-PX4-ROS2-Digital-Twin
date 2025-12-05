@@ -59,7 +59,7 @@ area:
 `coverage_planner.py` applies the `defaults.fov_deg` and `defaults.overlap` parameters, computes a lawnmower pattern, and produces synthetic waypoints that are fed back into the mission engine. You can still toggle `inspection.enable` and fallback rules exactly as in other modes.
 
 ## Workspace Bounds and Cruise Speed Limits
-The runtime enforces the indoor volume declared via the ROS parameter `world_bounds.{x,y,z}` (meters in PX4’s NED frame; see `param/sim.yaml`). Every ENU waypoint is mirrored into those bounds during parsing; if any `x`, `y`, or `z` lies outside the envelope the mission loader aborts with a descriptive error. At runtime, PX4 setpoints are also clamped to the same box after subtracting the spawn offset measured from `/fmu/out/vehicle_local_position`, ensuring the drone cannot drift through walls even if a waypoint was hand-edited.
+The runtime enforces the indoor volume declared via the ROS parameter `world_bounds.{x,y,z}` (meters in PX4’s NED frame; see `config/sim/default.yaml`). Every ENU waypoint is mirrored into those bounds during parsing; if any `x`, `y`, or `z` lies outside the envelope the mission loader aborts with a descriptive error. At runtime, PX4 setpoints are also clamped to the same box after subtracting the spawn offset measured from `/fmu/out/vehicle_local_position`, ensuring the drone cannot drift through walls even if a waypoint was hand-edited.
 
 Similarly, `cruise_speed_limits: [min, max]` guards the `defaults.cruise_speed_mps` value. Missions that specify a cruise speed outside this range fail fast so operators know when a plan is too aggressive for the current room.
 

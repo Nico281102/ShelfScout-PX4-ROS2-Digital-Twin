@@ -24,8 +24,7 @@ ROS 2 Workspace (ros2_ws)
 | --- | --- |
 | `ros2_ws/src/overrack_mission/` | Primary ROS 2 package (mission runner, mission engine, perception, metrics, planning utilities). |
 | `ros2_ws/src/px4_msgs`, `px4_ros_com` | PX4-official message and bridge packages; kept pristine for compatibility. |
-| `config/` | Mission YAML files and optional PX4 parameter overrides. |
-| `routes/` | Pre-computed trajectory templates (e.g., `overrack_default.yaml`). |
+| `config/` | Simulation defaults (`sim/default.yaml`, `sim/multi.yaml`), mission YAML files, routes (`config/routes/`), and optional PX4 parameter overrides. |
 | `worlds/`, `models/` | Gazebo Classic indoor world plus the custom rack and drone assets. |
 | `scripts/` | Launchers (`run_ros2_system.sh`, `launch_px4_gazebo.sh`), debug helpers, and env file. |
 | `data/` | Runtime artefacts: `logs/`, `metrics/`, `images/`. |
@@ -68,12 +67,12 @@ The ShelfScout Digital Twin (SSDT) profile lives in `scripts/.env` and is source
 Always `source scripts/.env` before manual commands, or let the provided scripts do it for you. To refresh your setup, edit `scripts/.env` (or start from `scripts/.env.example`) and re-run the launch script.
 
 ### Mission / world / agent defaults
-Mission content and simulator defaults live in `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml`:
+Mission content and simulator defaults live in `config/sim/default.yaml` (multi-drone: `config/sim/multi.yaml`):
 - `run_ros2_system.ros__parameters.world_file` — Gazebo world used by PX4 SITL.
-- `run_ros2_system.ros__parameters.agent_cmd` — command line passed to the Micro XRCE-DDS agent.
+- `run_ros2_system.ros__parameters.agent_cmd` (o `agent_cmd_default` in multi) — comando completo per il Micro XRCE-DDS Agent (in multi specifica l’`agent_cmd` per drone).
 - `mission_runner.ros__parameters.mission_file` — mission YAML parsed by the ROS node (see `docs/mission_v1.md`).
 - `torch_controller.ros__parameters.*` — topic `overrack/torch_enable` bridged to inspection events; includes `startup_on` and `min_on_seconds` (minimum ON dwell after `LOW_LIGHT` before honoring `OK`).
-Change those paths once in the YAML and re-run `scripts/run_ros2_system.sh`; no CLI overrides or env tweaks are necessary anymore.
+Change those paths once in the YAML and re-run `scripts/run_ros2_system.sh`; no CLI overrides or env tweaks are necessary anymore. A legacy copy still ships under `ros2_ws/src/overrack_mission/overrack_mission/param/` for `ros2 launch` defaults.
 
 > **When to rebuild `ros2_ws`**
 > - Any change under `ros2_ws/src/**` (Python nodes, launch files, msgs) or edits to `setup.py` / `package.xml` require `colcon build --symlink-install`.
@@ -97,13 +96,13 @@ Use the orchestrator from the repository root to start PX4, Gazebo, the Micro XR
 ```bash
 ./scripts/run_ros2_system.sh --gui      # use --headless for CI or SSH
 ```
-`run_ros2_system.sh` now refuses every other CLI flag on purpose: the world file, mission file, and XRCE agent command are loaded from `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml` (`run_ros2_system.ros__parameters` and `mission_runner.ros__parameters`). Edit that YAML to choose a different mission/world/agent and rerun the script—no more long command lines or env overrides. (The script parses the YAML via PyYAML, so keep `python3 -m pip install pyyaml` handy.)
+`run_ros2_system.sh` now refuses every other CLI flag on purpose: the world file, mission file, and XRCE agent command are loaded from `config/sim/default.yaml` (`run_ros2_system.ros__parameters` and `mission_runner.ros__parameters`). Edit that YAML to choose a different mission/world/agent and rerun the script—no more long command lines or env overrides. (The script parses the YAML via PyYAML, so keep `python3 -m pip install pyyaml` handy.)
 
 The script performs the following:
 - Verifies and (re)builds `ros2_ws` if needed.
-- Reads `param/sim.yaml` to resolve `world_file`, `mission_file`, and `agent_cmd`, then launches PX4 SITL + Gazebo via `scripts/launch_px4_gazebo.sh`.
-- Starts the Micro XRCE-DDS Agent exactly as declared in the YAML and tails its log to `data/logs/micro_xrce_agent.out`.
-- Runs `ros2 run overrack_mission mission_runner --ros-args --params-file <sim.yaml>` logging to `data/logs/mission_runner.out`.
+- Reads `config/sim/default.yaml` (or the file passed via `--params`/env) to resolve `world_file`, `mission_file`, and `agent_cmd`/`agent_cmd_default`, then launches PX4 SITL + Gazebo via `scripts/launch_px4_gazebo.sh`.
+- Starts the Micro XRCE-DDS Agent: uno nel path single (log in `data/logs/micro_xrce_agent.out`), uno per drone nel path multi usando l’`agent_cmd` dichiarato per drone (log in `data/logs/<ns>/micro_xrce_agent.out`).
+- Runs `ros2 run overrack_mission mission_runner --ros-args --params-file <params.yaml>` logging to `data/logs/mission_runner.out`.
 - Streams PX4 output to `data/logs/px4_sitl_default.out` for later inspection.
 
 If you ever need to kill everything quickly, `scripts/stop_manual_like.sh` still terminates PX4, Gazebo, the agent, and the mission runner.
@@ -115,7 +114,7 @@ If you ever need to kill everything quickly, `scripts/stop_manual_like.sh` still
 
 ## Mission Runner and ROS 2 Nodes
 - **Mission Runner (`nodes/mission_control_node.py`)**: loads the YAML plan supplied via `mission_file`, instantiates the ROS-free `MissionController`, and publishes Offboard setpoints at 20 Hz once PX4 reports readiness while co-spinning the inspection node.
-- **Mission Core**: `core/controller.py`, `core/plan.py`, `core/fsm.py`, and `core/planning/` translate mission plans into PX4 topic interactions. Modes include `explicit` waypoint execution, `precomputed` route playback (from `routes/*.yaml`), and `coverage` patterns generated by the planner.
+- **Mission Core**: `core/controller.py`, `core/plan.py`, `core/fsm.py`, and `core/planning/` translate mission plans into PX4 topic interactions. Modes include `explicit` waypoint execution, `precomputed` route playback (from `config/routes/*.yaml`), and `coverage` patterns generated by the planner.
 - **PX4 adapters**: `px4io/setpoints.py`, `px4io/telemetry.py`, and `px4io/qos.py` centralise QoS profiles, telemetry subscriptions, and command publishers. Every waypoint remains ENU in the mission files; the adapters convert to PX4’s NED frame (with yaw expressed in degrees → radians), subtract the spawn offset learned from the first odometry sample, and clamp the command to your declared `world_bounds` so the drone never exits the indoor volume.
 - **Inspection (`nodes/inspection_node.py`)**: subscribes to `sensor_msgs/Image` (configurable `image_topic`) and mission state updates to label each inspection stage as `OK`, `SUSPECT`, or `LOW_LIGHT`.
 - **Metrics (`nodes/metrics_node.py`)**: listens to mission states and inspection events, counts fallbacks, and writes summary + per-inspection CSV artefacts into `data/metrics/` (including how many low-light snapshots occurred).
@@ -124,7 +123,7 @@ If you ever need to kill everything quickly, `scripts/stop_manual_like.sh` still
 The ROS 2 package is registered through `ros2_ws/src/overrack_mission/setup.py`, which wires the entry points above so `colcon build` exposes `mission_runner`, `inspection_node`, and `mission_metrics` as console scripts after installation. See `docs/mission_v1.md` (“Mission Runner Internals”) for a deep dive into the state machine, yaw conventions, and parameter schema.
 
 ### Mission Runner parameters (sim)
-`ros2 launch overrack_mission mission.sim.launch.py mission_file:=config/mission1.yaml` remains the quickest way to start the stack. That launch file feeds `param/sim.yaml`, which now exposes:
+`ros2 launch overrack_mission mission.sim.launch.py mission_file:=config/mission1.yaml` remains the quickest way to start the stack. That launch file feeds `config/sim/default.yaml` by default (`params_file:=...` overrides), which now exposes:
 - `mission_file`: YAML plan (still overridable via `mission_file:=...`).
 - `world_bounds.{x,y,z}` (meters in NED): rectangular safety limits mirrored into ENU for plan validation; every waypoint outside these numbers causes a load-time failure, and every PX4 setpoint is clamped to the same box after the spawn-offset correction.
 - `cruise_speed_limits`: `[min, max]` guard rails checked against `cruise_speed_mps`.
@@ -136,7 +135,7 @@ The inspection node keeps its `image_topic`, `low_light_threshold`, and QoS wire
 
 Link-loss simulation: PX4 native failsafe handles the drone when Offboard link stops (`sim.disable_link_after_s` defines when; set `<0` to disable). Extension ideas: degraded-link simulation, custom fallback sequences, probabilistic loss injection.
 
-Offboard requires a continuous setpoint stream: if you stop publishing, PX4 triggers its Offboard-loss failsafe after `COM_OF_LOSS_T` and executes the action in `COM_OBL_RC_ACT` (e.g., Hold/RTL/Land/Terminate). The `sim.disable_link_after_s` flag simply halts setpoints to exercise that PX4 behaviour. If you want a different reaction during simulation, set `COM_OBL_RC_ACT` (and optionally `COM_OF_LOSS_T`) in `px4_param_setter` inside `param/sim.yaml`.
+Offboard requires a continuous setpoint stream: if you stop publishing, PX4 triggers its Offboard-loss failsafe after `COM_OF_LOSS_T` and executes the action in `COM_OBL_RC_ACT` (e.g., Hold/RTL/Land/Terminate). The `sim.disable_link_after_s` flag simply halts setpoints to exercise that PX4 behaviour. If you want a different reaction during simulation, set `COM_OBL_RC_ACT` (and optionally `COM_OF_LOSS_T`) in `px4_param_setter` inside `config/sim/default.yaml`.
 
 ## Data, Logs, and Analysis Tools
 - `data/logs/` collects PX4, agent, mission runner, and auxiliary script logs for regression tracking.

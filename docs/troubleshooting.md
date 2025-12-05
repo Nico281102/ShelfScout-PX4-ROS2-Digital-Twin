@@ -72,7 +72,7 @@ Place this in `PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_run.sh` after 
 
 **Fix**
 
-1. Open `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml` and tune `px4_param_setter.px4_params`:
+1. Open `config/sim/default.yaml` and tune `px4_param_setter.px4_params`:
    - `SIM_BAT_DRAIN` and `SIM_BAT_MIN_PCT` for discharge rate.
    - `BAT1_*` (cells, voltages, capacity) to model the pack.
    - `BAT_LOW_THR`, `BAT_CRIT_THR`, `BAT_EMERGEN_THR` to align warnings.
@@ -312,7 +312,7 @@ Keep a transparent visual:
 **Fix**
 
 1. Set `debug_frames:=true` to log ENU/NED/offset snapshots per waypoint.
-2. Verify `world_bounds` in `param/sim.yaml` and ensure waypoints fall inside the envelope.
+2. Verify `world_bounds` in `config/sim/default.yaml` and ensure waypoints fall inside the envelope.
 
 ## PX4 battery failsafe overrides mission fallbacks
 
@@ -326,7 +326,7 @@ Keep a transparent visual:
 
 **Fix**
 
-1. Set `COM_LOW_BAT_ACT` to `Warning` (or adjust thresholds) via `px4_param_setter` in `param/sim.yaml`.
+1. Set `COM_LOW_BAT_ACT` to `Warning` (or adjust thresholds) via `px4_param_setter` in `config/sim/default.yaml`.
 2. Keep mission fallbacks in sync with PX4 thresholds.
 
 ## No `/fmu/out/*` topics

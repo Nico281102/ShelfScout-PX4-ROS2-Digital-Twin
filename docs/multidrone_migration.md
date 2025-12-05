@@ -13,6 +13,7 @@ Esempio (bozza):
 run_ros2_system:
   ros__parameters:
     world_file: worlds/overrack_indoor.world
+    agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4
 
 drones:
   - name: drone1
@@ -22,7 +23,7 @@ drones:
     mission_file: config/mission_drone1.yaml
     mav_sys_id: 1
     mavlink_udp_port: 14540
-    agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4" (non sono sicuro seer a piu, l'agente è sempre + soltanto uno no?)
+    agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
     px4_params: {SIM_BAT_DRAIN: 20.0}
     log_dir: data/logs/drone1
   - name: drone2
@@ -32,14 +33,16 @@ drones:
     mission_file: config/mission_drone2.yaml
     mav_sys_id: 2
     mavlink_udp_port: 14550
-    agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4" (non sono sicuro seer a piu, l'agente è sempre + soltanto uno no?)
+    agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
     px4_params: {SIM_BAT_DRAIN: 25.0}
     log_dir: data/logs/drone2
 logging:
   base_dir: data/logs/multi_run
-metrics:
+  metrics:
   base_dir: data/metrics/multi_run
 ```
+
+Nota: lanciamo un agent Micro XRCE per ogni drone con porta dedicata; specifica l'`agent_cmd` completo nei blocchi `drones` e usa `agent_cmd_default` solo come fallback.
 
 ## Roadmap tecnica
 - **Parsing config unico**
@@ -50,7 +53,7 @@ metrics:
   - Riutilizzare `Tools/simulation/gazebo-classic/sitl_multiple_run.sh` di PX4 o ciclare `scripts/launch_px4_gazebo.sh` con `PX4_INSTANCE` per ottenere rootfs, porte MAVLink/MicroDDS e log separati.
   - Passare per drone: `PX4_GZ_MODEL_NAME`, `PX4_GZ_MODEL_POSE` (spawn offset), `PX4_SIM_MODEL` e ID (`MAV_SYS_ID`) per evitare conflitti.
   - Mantenere un solo `gazebo`/`gzserver`, ma senza modelli baked-in nel world; lasciare a PX4 (factory plugin) lo spawn dei modelli con pose derivate da YAML.
-  - Un agent Micro XRCE per drone su porta dedicata (opzione più semplice) oppure un solo agent con client key per istanza se già supportato dal rcS corrente.
+  - Un agent Micro XRCE per drone su porta dedicata (scelta attuale); valutare un solo agent con client key per istanza solo se il rcS lo supporta.
 
 - **Launch ROS 2 namespaced**
   - Convertire `mission.sim.launch.py` in un launcher multi-istanza: `GroupAction` + `PushRosNamespace` per ogni drone, nomi univoci dei nodi (`mission_runner_<name>`, `inspection_<name>`, ecc.).
@@ -78,7 +81,7 @@ metrics:
 - Adeguato `run_ros2_system.sh` e `mission.sim.launch.py` per iterare i blocchi `drones`, creare namespace ROS separati e passare per-drone mission file/parametri/QoS senza duplicare codice.
 - Allineata la risoluzione del nome modello Gazebo in `mission.sim.launch.py` agli alias di `sitl_multiple_run.sh` (iris_opt_flow -> iris, suffix `_k`), così la Telemetry trova il modello corretto e cattura lo spawn offset invece di andare in timeout.
 - Usato `sitl_multiple_run.sh` per PX4 multi-istanza: un solo `gzserver`, spawn offset dal YAML, mapping `iris_opt_flow`→`iris` (limitazione dello script), log separati per istanza.
-- Stabilita l’architettura XRCE: un solo Micro XRCE Agent condiviso, più client PX4 con chiave dedicata e namespace coerente (`/px4_k`), lanciati prima dei nodi ROS per evitare “EKF local position” infinito.
+- Stabilita l’architettura XRCE: un Micro XRCE Agent per drone (porte dedicate) con client PX4 chiave/namespace coerente (`/px4_k`), lanciati prima dei nodi ROS per evitare “EKF local position” infinito.
 - Corretto il mismatch SYSID/`target_system`: Telemetry legge `system_id` da `VehicleStatus` e SetpointPublisher lo usa per indirizzare i `VehicleCommand` (fallback a `vehicle_id` con warning), così arming/offboard funzionano per tutte le istanze anche se `sitl_multiple_run` applica l’offset `mavlink_id=1+N`.
 - Documentati i problemi ricorrenti (plugin Gazebo ROS, modelli supportati, naming dei topic PX4) e la procedura di verifica con hover/land per ogni drone.
 
@@ -87,7 +90,7 @@ metrics:
 - `iris_opt_flow` non supportato da `sitl_multiple_run.sh`: mappa a `iris` lato runner (loggato come runner=iris) per far partire la simulazione.
 - Attesa infinita su “Waiting for EKF local position…” in multi-istanza: senza micrortps_client/Agent per ogni PX4 non arrivano i topic `/fmu/out/*`; avvia un client per istanza con porte dedicate e un Agent per drone (namespace corretto) prima di lanciare i nodi ROS.
 - Topics PX4 namespacizzati: se il bridge pubblica solo `/fmu/...`, lascia `px4_namespace` vuoto nei nodi; il namespacing PX4 va riattivato solo quando anche il bridge usa `/droneX/fmu/...`.
-- Architettura agent XRCE: usare **un solo Micro XRCE-DDS Agent condiviso** su una porta (es. 8888) e più client XRCE (uno per PX4). `sitl_multiple_run.sh` imposta `px4_instance`, `UXRCE_DDS_KEY` e il namespace ROS (`/px4_1`, `/px4_2`, …); i nodi ROS vanno lanciati nello stesso namespace (`__ns:=/px4_k`) mantenendo i topic PX4 su `/fmu/in|out/*`. Così si evita la collisione tra client_key e si ricevono correttamente i topic di ogni istanza.
+- Architettura agent XRCE: usare un Micro XRCE-DDS Agent per drone su porta dedicata (es. 8888, 8889, ...). `sitl_multiple_run.sh` imposta `px4_instance`, `UXRCE_DDS_KEY` e il namespace ROS (`/px4_1`, `/px4_2`, …); i nodi ROS vanno lanciati nello stesso namespace (`__ns:=/px4_k`) mantenendo i topic PX4 su `/fmu/in|out/*`. Così si evita la collisione tra client_key e si ricevono correttamente i topic di ogni istanza.
 - `px4_param_setter` RuntimeError in shutdown (Context must be initialized...): dopo l’applicazione parametri il crash è benigno; se dà fastidio, eseguirlo solo quando `px4_params` è presente o gestire l’uscita senza `rclpy.shutdown()` forzato.
 - Mismatch MAV_SYS_ID vs `target_system`: `sitl_multiple_run.sh` genera `--mavlink_id $((1+N))` con `N` che parte da 1, quindi le istanze di default hanno SYSID 2,3,... mentre il mission runner inviava `VehicleCommand` a 1,2; PX4 ignorava arming/offboard sul drone “sbagliato”. Fix: Telemetry legge `system_id` da `VehicleStatus` e SetpointPublisher usa quel valore per `target_system`/`source_system` (fallback a `vehicle_id` con warning), così i comandi seguono sempre il SYSID reale.
 
