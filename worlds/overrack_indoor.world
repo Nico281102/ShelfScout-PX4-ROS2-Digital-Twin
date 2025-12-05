@@ -66,13 +66,13 @@
 <gui fullscreen="0">
   <camera name="overrack_default">
     <!-- Posizione iniziale della camera nel mondo -->
-    <pose>0 0 1.5 0 0 0</pose>
+    <pose>-4 -4 6.0 0 0.75 0.6</pose>
 
     <!-- Camera in modalità FPS -->
-    <view_controller>orbit</view_controller>
+    <view_controller>fps</view_controller>
 
     <!-- Segui il drone -->
-    <track_visual>iris_opt_flow::base_link</track_visual>
+   <!--  <track_visual>iris_opt_flow::base_link</track_visual>-->
   </camera>
 </gui>
 
