@@ -9,29 +9,35 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 
+from ..topics import namespaced
+
 
 class TorchController(Node):
     """Forwards inspection events to the torch command topic."""
 
-    _INSPECTION_TOPIC = "overrack/inspection"
-
     def __init__(self) -> None:
         super().__init__("torch_controller")
+        self._vehicle_ns = (
+            self.declare_parameter("vehicle_ns", "").get_parameter_value().string_value.strip()
+        )
         self.declare_parameter("command_topic", "overrack/torch_enable")
         self.declare_parameter("startup_on", False)
         self.declare_parameter("min_on_seconds", 10.0)
 
-        self._command_topic = self.get_parameter("command_topic").get_parameter_value().string_value
+        self._command_topic = self._resolve_topic(
+            self.get_parameter("command_topic").get_parameter_value().string_value
+        )
+        self._inspection_topic = namespaced("overrack/inspection", namespace=self._vehicle_ns)
         self._enabled = False
         self._last_on_ts: Optional[float] = None
         self._min_on = max(0.0, float(self.get_parameter("min_on_seconds").value))
         self._cmd_pub = self.create_publisher(Bool, self._command_topic, 10)
-        self.create_subscription(String, self._INSPECTION_TOPIC, self._on_inspection_event, 10)
+        self.create_subscription(String, self._inspection_topic, self._on_inspection_event, 10)
         self.get_logger().info(
             "Torch bridge ready (cmd_topic=%s, inspection_topic=%s, startup_on=%s, min_on_s=%.1f)"
             % (
                 self._command_topic,
-                self._INSPECTION_TOPIC,
+                self._inspection_topic,
                 self.get_parameter("startup_on").value,
                 self._min_on,
             )
@@ -72,6 +78,13 @@ class TorchController(Node):
 
     def _now(self) -> float:
         return self.get_clock().now().nanoseconds / 1e9
+
+    def _resolve_topic(self, topic: str) -> str:
+        if not self._vehicle_ns:
+            return topic
+        if topic.startswith(f"/{self._vehicle_ns}/") or topic.startswith(f"{self._vehicle_ns}/"):
+            return topic
+        return namespaced(topic, namespace=self._vehicle_ns)
 
 
 def main(args: Optional[list[str]] = None) -> None:

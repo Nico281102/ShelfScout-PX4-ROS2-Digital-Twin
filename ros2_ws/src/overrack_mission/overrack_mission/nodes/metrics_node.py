@@ -12,14 +12,23 @@ from std_msgs.msg import String
 
 from ..core.kpi import defective_rate, export_csv, export_inspection_log, mission_duration
 from ..px4io.qos import EVENTS_QOS
-
-
-_METRICS_DIR = Path("data/metrics")
+from ..px4io.topics import namespaced
 
 
 class MetricsNode(Node):
     def __init__(self) -> None:
         super().__init__("mission_metrics")
+        self._vehicle_ns = (
+            self.declare_parameter("vehicle_ns", "").get_parameter_value().string_value.strip()
+        )
+        metrics_dir_override = self.declare_parameter("metrics_dir", "").get_parameter_value().string_value
+        if metrics_dir_override:
+            self._metrics_dir = Path(metrics_dir_override)
+        elif self._vehicle_ns:
+            self._metrics_dir = Path(f"data/metrics/{self._vehicle_ns}")
+        else:
+            self._metrics_dir = Path("data/metrics")
+
         self._inspection_total = 0
         self._inspection_suspect = 0
         self._fallback_counts: Counter[str] = Counter()
@@ -31,10 +40,20 @@ class MetricsNode(Node):
         self._inspection_log: list[tuple[int, float, str]] = []
         self._current_snapshot_index = 0
 
-        self.create_subscription(String, "overrack/inspection", self._on_inspection, EVENTS_QOS)
-        self.create_subscription(String, "overrack/mission_state", self._on_state, EVENTS_QOS)
+        self.create_subscription(
+            String,
+            namespaced("overrack/inspection", namespace=self._vehicle_ns),
+            self._on_inspection,
+            EVENTS_QOS,
+        )
+        self.create_subscription(
+            String,
+            namespaced("overrack/mission_state", namespace=self._vehicle_ns),
+            self._on_state,
+            EVENTS_QOS,
+        )
 
-        _METRICS_DIR.mkdir(parents=True, exist_ok=True)
+        self._metrics_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Callbacks
@@ -92,12 +111,12 @@ class MetricsNode(Node):
         if self._last_state:
             rows.append(("last_state", self._last_state))
 
-        outfile = export_csv(rows, _METRICS_DIR, "mission_metrics")
+        outfile = export_csv(rows, self._metrics_dir, "mission_metrics")
         self.get_logger().info(f"Metrics exported to {outfile}")
 
         detail_file = export_inspection_log(
             self._inspection_log,
-            _METRICS_DIR,
+            self._metrics_dir,
             "mission_inspections",
             self._mission_start,
         )

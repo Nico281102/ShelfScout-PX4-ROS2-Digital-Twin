@@ -23,6 +23,7 @@ except Exception:  # noqa: BLE001
     np = None
 
 from ..px4io.qos import EVENTS_QOS
+from ..px4io.topics import namespaced
 
 
 class InspectionNode(Node):
@@ -36,27 +37,32 @@ class InspectionNode(Node):
 
     def __init__(self) -> None:
         super().__init__("inspection_node")
+        self._vehicle_ns = (
+            self.declare_parameter("vehicle_ns", "").get_parameter_value().string_value.strip()
+        )
         self.declare_parameter("image_topic", "/overrack/iris/front_camera/image_raw")
         self.declare_parameter("low_light_threshold", 40.0)
         self.declare_parameter("suspect_variance", 12.0)
         self.declare_parameter("publish_period_s", 0.5)
 
         image_topic = self.get_parameter("image_topic").get_parameter_value().string_value
-        self._image_topic = image_topic
+        self._image_topic = self._resolve_topic(image_topic)
         self._low_light_threshold = float(self.get_parameter("low_light_threshold").value)
         self._suspect_variance = float(self.get_parameter("suspect_variance").value)
         self._publish_period = max(0.1, float(self.get_parameter("publish_period_s").value))
 
-        self._event_pub = self.create_publisher(String, "overrack/inspection", EVENTS_QOS)
+        self._event_pub = self.create_publisher(
+            String, namespaced("overrack/inspection", namespace=self._vehicle_ns), EVENTS_QOS
+        )
         self._image_sub = self.create_subscription(
             Image,
-            image_topic,
+            self._image_topic,
             self._on_image,
             SensorDataQoS(),
         )
         self._state_sub = self.create_subscription(
             String,
-            "overrack/mission_state",
+            namespaced("overrack/mission_state", namespace=self._vehicle_ns),
             self._on_mission_state,
             EVENTS_QOS,
         )
@@ -69,7 +75,10 @@ class InspectionNode(Node):
         self._last_event_stamp: Optional[float] = None
         self._pending_snapshots = 0
         self._last_image: Optional[Image] = None
-        self._snapshot_dir = Path("data/images/snapshots")
+        if self._vehicle_ns:
+            self._snapshot_dir = Path(f"data/images/{self._vehicle_ns}/snapshots")
+        else:
+            self._snapshot_dir = Path("data/images/snapshots")
         self._snapshot_dir.mkdir(parents=True, exist_ok=True)
         self._snapshot_index = 0
 
@@ -225,6 +234,15 @@ class InspectionNode(Node):
             buffer[idx + 1] = g
             buffer[idx + 2] = b
         return bytes(buffer)
+
+    def _resolve_topic(self, topic: str) -> str:
+        """Apply namespace unless topic already matches the namespace."""
+        if not self._vehicle_ns:
+            return topic
+        clean_topic = topic or ""
+        if clean_topic.startswith(f"/{self._vehicle_ns}/") or clean_topic.startswith(f"{self._vehicle_ns}/"):
+            return clean_topic
+        return namespaced(clean_topic, namespace=self._vehicle_ns)
 
 
 def main(args: Optional[list[str]] = None) -> None:

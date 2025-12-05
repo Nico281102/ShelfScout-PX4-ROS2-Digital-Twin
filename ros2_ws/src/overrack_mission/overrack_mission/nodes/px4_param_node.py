@@ -56,6 +56,12 @@ class PX4ParamSetter(Node):
         self.get_logger().info(
             f"In attesa di PX4 STANDBY per impostare i parametri: {self._px4_params}"
         )
+        
+        self.get_logger().info(
+            f"PX4ParamSetter init: vehicle_ns='{self._vehicle_ns}', "
+            f"px4_namespace='{self._px4_namespace}', mavlink_url='{self._mavlink_url}'"
+        )
+
 
         self._status_sub = self.create_subscription(
             VehicleStatus,
@@ -90,13 +96,16 @@ class PX4ParamSetter(Node):
         px4_params: Dict[str, Numeric] = {}
         for name, param in parameters.items():
             value = param.value
+            # Support string values that may carry trailing comma from YAML typos.
+            if isinstance(value, str):
+                value = value.strip().rstrip(",")
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 px4_params[name] = value
             else:
                 try:
                     px4_params[name] = float(value)
                 except (TypeError, ValueError):
-                    self.get_logger().warn_once(
+                    self.get_logger().warning(
                         f"Parametro PX4 '{name}' ignorato: tipo non numerico ({type(value).__name__})"
                     )
         return px4_params
@@ -105,10 +114,8 @@ class PX4ParamSetter(Node):
         try:
             asyncio.run(self._set_params_async())
         finally:
-            try:
-                rclpy.shutdown()
-            except Exception:  # noqa: BLE001
-                pass
+            # Lo shutdown del contesto va lasciato al main, evitare doppio shutdown da thread.
+            pass
 
     async def _set_params_async(self) -> None:
         try:
@@ -155,7 +162,11 @@ def main():
                 node.destroy_node()
             except Exception:
                 pass
-        rclpy.shutdown()
+        try:
+            rclpy.shutdown()
+        except RuntimeError:
+            # Già shutdown altrove (ad es. in thread) oppure contesto non inizializzato.
+            pass
 
 
 if __name__ == "__main__":
