@@ -49,14 +49,14 @@ class PX4ParamSetter(Node):
         self._active = True
 
         if not self._px4_params:
-            self.get_logger().info("Nessun parametro PX4 trovato nel YAML (px4_params.*)")
+            self.get_logger().info("No PX4 parameters found in YAML (px4_params.*)")
             self._active = False
             return
 
         self.get_logger().info(
-            f"In attesa di PX4 STANDBY per impostare i parametri: {self._px4_params}"
+            f"Waiting for PX4 STANDBY to set parameters: {self._px4_params}"
         )
-        
+
         self.get_logger().info(
             f"PX4ParamSetter init: vehicle_ns='{self._vehicle_ns}', "
             f"px4_namespace='{self._px4_namespace}', mavlink_url='{self._mavlink_url}'"
@@ -80,7 +80,7 @@ class PX4ParamSetter(Node):
             return
 
         self._started = True
-        self.get_logger().info("PX4 in STANDBY: invio parametri via MAVLink")
+        self.get_logger().info("PX4 in STANDBY: pushing parameters via MAVLink")
         self._connection_thread = threading.Thread(
             target=self._run_param_push,
             name="px4_param_setter",
@@ -106,7 +106,7 @@ class PX4ParamSetter(Node):
                     px4_params[name] = float(value)
                 except (TypeError, ValueError):
                     self.get_logger().warning(
-                        f"Parametro PX4 '{name}' ignorato: tipo non numerico ({type(value).__name__})"
+                        f"PX4 parameter '{name}' ignored: non-numeric type ({type(value).__name__})"
                     )
         return px4_params
 
@@ -154,17 +154,17 @@ class PX4ParamSetter(Node):
                 try:
                     current = await getter(name)  # type: ignore[misc]
                     self.get_logger().info(
-                        f"Parametro impostato: {name} = {cast_value} "
+                        f"Parameter set: {name} = {cast_value} "
                         f"(before={current_before}, after={current})"
                     )
                 except Exception:
                     self.get_logger().info(
-                        f"Parametro impostato: {name} = {cast_value} (before={current_before})"
+                        f"Parameter set: {name} = {cast_value} (before={current_before})"
                     )
             except Exception as exc:  # noqa: BLE001
-                self.get_logger().error(f"Errore impostando {name}: {exc}")
+                self.get_logger().error(f"Error setting {name}: {exc}")
 
-        self.get_logger().info("PX4ParamSetter completato — shutting down")
+        self.get_logger().info("PX4ParamSetter completed -- shutting down")
 
 
 def main():
