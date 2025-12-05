@@ -1,0 +1,480 @@
+<?xml version="1.0"?>
+<!--
+  Over-Rack Indoor World (Gazebo Classic / SDF 1.6)
+
+  - Room with two rack rows and barcode boards on the upper shelves
+  - PX4 drone model included (iris_opt_flow) with downward-facing sensor stack
+  - Visible scan markers (waypoint hints) matching the default config waypoints
+
+  Notes:
+  - The drone model `iris_opt_flow` comes from PX4's sitl_gazebo models.
+  - Ensure your GAZEBO_MODEL_PATH includes both PX4 sitl_gazebo models
+    and this repo's `models/` folder (scripts/launch_px4_gazebo.sh does this).
+-->
+<sdf version="1.6">
+  <world name="overrack_indoor">
+
+    <!-- Enable Gazebo ROS API plugin for ROS2 services -->
+    <plugin name="gazebo_ros_api_plugin" filename="libgazebo_ros_api_plugin.so"/> <!-- ROS2 integration , to commit-->
+    <!-- Publishes /gazebo/model_states and /gazebo/link_states to ROS2 -->
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros>
+        <namespace>/gazebo</namespace>
+      </ros>
+    </plugin>
+    <!-- Provides /gazebo/get_model_state and /gazebo/get_entity_state services -->
+    <plugin name="gazebo_ros_factory" filename="libgazebo_ros_factory.so">
+      <ros>
+        <namespace>/gazebo</namespace>
+      </ros>
+    </plugin>
+
+    <model name="origin_marker">
+  <static>true</static>
+  <pose>0 0 0 0 0 0</pose>
+  <link name="link">
+    <visual name="visual">
+      <geometry>
+        <box>
+          <size>0.2 0.2 0.2</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient> <!-- rosso brillante -->
+        <diffuse>1 0 0 1</diffuse>
+      </material>
+    </visual>
+  </link>
+</model>
+
+
+
+    <gravity>0 0 -9.81</gravity>
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.8 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <gui fullscreen="0">
+      <camera name="overrack_default">
+        <pose>2.0 -7.0 4.0 0.6 0.0 1.57</pose>
+        <view_controller>orbit</view_controller>
+        <track_visual>iris_opt_flow::base_link</track_visual>
+      </camera>
+    </gui>
+
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_update_rate>250</real_time_update_rate>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Sun and ground -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Simple room walls -->
+    <model name="room">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <!-- Roof -->
+      <link name="roof">
+        <pose>0 0 3.0 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box>
+              <size>12 10 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box>
+              <size>12 10 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <!-- Four walls: 12m x 10m room, 3m tall -->
+      <link name="wall_north">
+        <pose>0 5 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>12 0.1 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>12 0.1 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name="wall_south">
+        <pose>0 -5 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>12 0.1 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>12 0.1 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name="wall_east">
+        <pose>6 0 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name="wall_west">
+        <pose>-6 0 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Two rack rows -->
+    <include>
+      <uri>model://overrack_shelf</uri>
+      <name>rack_row_a</name>
+      <pose>0 -2.5 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_shelf</uri>
+      <name>rack_row_b</name>
+      <pose>0 2.5 0 0 0 0</pose>
+    </include>
+
+    <!-- Boxes on shelves -->
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_a1</name>
+      <pose>-0.8 -2.6 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_a2</name>
+      <pose>0.0 -2.6 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_a3</name>
+      <pose>0.8 -2.6 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_a4</name>
+      <pose>-0.8 -2.6 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_a5</name>
+      <pose>0.0 -2.6 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_a6</name>
+      <pose>0.8 -2.6 1.55 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_b1</name>
+      <pose>-0.8 2.6 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_b2</name>
+      <pose>0.0 2.6 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_b3</name>
+      <pose>0.8 2.6 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_b4</name>
+      <pose>-0.8 2.6 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_b5</name>
+      <pose>0.0 2.6 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_box</uri>
+      <name>box_b6</name>
+      <pose>0.8 2.6 1.55 0 0 0</pose>
+    </include>
+  
+    <!-- Barcode boards positioned on upper shelves (placeholders) -->
+    <!--<include>
+      <uri>model://barcode_board</uri>
+      <name>barcode_a1</name>
+      <pose>-0.75 -2.5 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://barcode_board</uri>
+      <name>barcode_a2</name>
+      <pose>0.0 -2.5 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://barcode_board</uri>
+      <name>barcode_a3</name>
+      <pose>0.75 -2.5 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://barcode_board</uri>
+      <name>barcode_b1</name>
+      <pose>-0.75 2.5 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://barcode_board</uri>
+      <name>barcode_b2</name>
+      <pose>0.0 2.5 1.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://barcode_board</uri>
+      <name>barcode_b3</name>
+      <pose>0.75 2.5 1.55 0 0 0</pose>
+    </include> -->
+
+    <!-- Drone (PX4 Iris variant with downward-facing optical flow/camera) -->
+    <!-- Requires PX4 sitl_gazebo models available in GAZEBO_MODEL_PATH -->
+
+    <!-- Disabled for now since PX4 should spawn one -->
+    <!--<include> 
+      <uri>model://iris_opt_flow</uri>
+      <name>drone</name>
+      <pose>0 0 2.5 0 0 0</pose>
+    </include> -->
+
+    <!-- Overhead downward camera to generate frames for CV pipeline.
+         This is a temporary stand-in for a camera mounted directly on the drone.
+         It saves frames to data/images/downcam at ~10 FPS. -->
+
+
+    <!-- Visible scan markers aligned with config/mission.yaml (ENU, z=0) -->
+<!-- ====== NON-COLLIDABLE WAYPOINT MARKERS (visual-only) ====== -->
+<!-- helper: un marker visual-only -->
+<!-- usa: <wp_marker name="wp_spawn_alt" x="0.0" y="0.0" z="1.0" yaw="0.0"/> -->
+<!-- (SDF non supporta macro: duplico il blocco per ogni waypoint) -->
+
+<!-- spawn (floor) -->
+<model name="wp_spawn_floor">
+  <static>true</static>
+  <pose>0.0 0.0 0 0 0 0</pose>
+  <link name="link">
+    <visual name="vis">
+      <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+      <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
+    </visual>
+  </link>
+</model>
+
+<!-- spawn (floating at mission altitude 1 m) -->
+<model name="wp_spawn_alt">
+  <static>true</static>
+  <pose>0.0 0.0 1 0 0 0</pose>
+  <link name="link">
+    <visual name="vis">
+      <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+      <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
+    </visual>
+  </link>
+</model>
+
+<!-- A -->
+<model name="wp_A_floor"><static>true</static><pose>-2 0 0 0 0 0</pose>
+  <link name="link"><visual name="vis">
+    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.6 1 1</ambient><diffuse>0.2 0.6 1 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_A_alt"><static>true</static><pose>-2 0 1 0 0 0</pose>
+  <link name="link"><visual name="vis">
+    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.6 1 1</ambient><diffuse>0.2 0.6 1 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- B_arrival -->
+<model name="wp_B_arrival_floor"><static>true</static><pose>-2 -3.5 0 0 0 0</pose>
+  <link name="link"><visual name="vis">
+    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>1 0.6 0.2 1</ambient><diffuse>1 0.6 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_B_arrival_alt"><static>true</static><pose>-2 -3.5 1 0 0 0</pose>
+  <link name="link"><visual name="vis">
+    <geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>1 0.6 0.2 1</ambient><diffuse>1 0.6 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- BC (usato anche per *_photo) -->
+<model name="wp_BC_floor"><static>true</static><pose>-0.8 -3.5 0 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>1 0 0.4 1</ambient><diffuse>1 0 0.4 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_BC_alt"><static>true</static><pose>-0.8 -3.5 1 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>1 0 0.4 1</ambient><diffuse>1 0 0.4 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- C -->
+<model name="wp_C_floor"><static>true</static><pose>0 -3.5 0 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.9 0.9 0.2 1</ambient><diffuse>0.9 0.9 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_C_alt"><static>true</static><pose>0 -3.5 1 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.9 0.9 0.2 1</ambient><diffuse>0.9 0.9 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- CD -->
+<model name="wp_CD_floor"><static>true</static><pose>0.8 -3.5 0 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.6 0.2 1 1</ambient><diffuse>0.6 0.2 1 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_CD_alt"><static>true</static><pose>0.8 -3.5 1 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.6 0.2 1 1</ambient><diffuse>0.6 0.2 1 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- D (yaw 180° se vuoi indicarlo con una freccia, ma il disco non ha verso) -->
+<model name="wp_D_floor"><static>true</static><pose>2 -3.5 0 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 1 0.6 1</ambient><diffuse>0.2 1 0.6 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_D_alt"><static>true</static><pose>2 -3.5 1 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 1 0.6 1</ambient><diffuse>0.2 1 0.6 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- E -->
+<model name="wp_E_floor"><static>true</static><pose>2 3.5 0 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.8 0.8 1</ambient><diffuse>0.2 0.8 0.8 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_E_alt"><static>true</static><pose>2 3.5 1 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.8 0.8 1</ambient><diffuse>0.2 0.8 0.8 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- EF -->
+<model name="wp_EF_floor"><static>true</static><pose>0.8 3.5 0 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.8 0.2 0.8 1</ambient><diffuse>0.8 0.2 0.8 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_EF_alt"><static>true</static><pose>0.8 3.5 1 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.8 0.2 0.8 1</ambient><diffuse>0.8 0.2 0.8 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- F -->
+<model name="wp_F_floor"><static>true</static><pose>0 3.5 0 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.8 0.8 0.2 1</ambient><diffuse>0.8 0.8 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_F_alt"><static>true</static><pose>0 3.5 1 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.8 0.8 0.2 1</ambient><diffuse>0.8 0.8 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- FG -->
+<model name="wp_FG_floor"><static>true</static><pose>-0.8 3.5 0 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_FG_alt"><static>true</static><pose>-0.8 3.5 1 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- G -->
+<model name="wp_G_floor"><static>true</static><pose>-2 3.5 0 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.2 0.9 1</ambient><diffuse>0.2 0.2 0.9 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_G_alt"><static>true</static><pose>-2 3.5 1 0 0 3.1415926536</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.2 0.9 1</ambient><diffuse>0.2 0.2 0.9 1</diffuse></material>
+  </visual></link>
+</model>
+
+<!-- H -->
+<model name="wp_H_floor"><static>true</static><pose>0 0 0 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+<model name="wp_H_alt"><static>true</static><pose>0 0 1 0 0 0</pose>
+  <link name="link"><visual name="vis"><geometry><cylinder><radius>0.07</radius><length>0.01</length></cylinder></geometry>
+    <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
+  </visual></link>
+</model>
+
+  </world>
+</sdf>
