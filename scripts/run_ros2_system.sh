@@ -268,6 +268,27 @@ fi
 
 # Populate drone arrays from drones_yaml (if any).
 eval "$(load_drones_env "$PARAM_FILE_PATH")" || true
+if (( DRONE_COUNT > 0 )); then
+  echo "[run_ros2_system] Drones loaded:"
+  for idx in $(seq 0 $((DRONE_COUNT - 1))); do
+    echo "  - ${DRONE_NAME[$idx]:-drone$((idx+1))} (ns=${DRONE_NS[$idx]:-}, agent_cmd=${DRONE_AGENT_CMD[$idx]:-<unset>})"
+  done
+fi
+
+resolve_agent_cmd_for_drone() {
+  local idx="$1"
+  local default_cmd="${2:-$DEFAULT_AGENT_CMD}"
+  local cmd="${DRONE_AGENT_CMD[$idx]:-}"
+  if [[ -z "$cmd" ]]; then
+    cmd="$default_cmd"
+    # Se più droni e il comando ha "-p <porta>", incrementa la porta per evitare collisioni.
+    if (( DRONE_COUNT > 1 )) && [[ "$cmd" =~ (.*-p[[:space:]]*)([0-9]+)(.*) ]]; then
+      local base_port="${BASH_REMATCH[2]}"
+      cmd="${BASH_REMATCH[1]}$((base_port + idx))${BASH_REMATCH[3]}"
+    fi
+  fi
+  printf '%s\n' "$cmd"
+}
 
 ensure_colcon_workspace() {
   if ! command -v colcon >/dev/null 2>&1; then
@@ -371,108 +392,6 @@ wait_for_gzserver() {
   echo "[run_ros2_system] Waiting for gzserver (timeout ${timeout}s)"
   while (( $(date +%s) - start < timeout )); do
     if pgrep -f 'gzserver' >/dev/null 2>&1; then
-      stable=$((stable + 1))
-      if (( stable >= 3 )); then
-        echo "[run_ros2_system] gzserver is up and stable"
-        return 0
-      fi
-    else
-      stable=0
-    fi
-    sleep 1
-  done
-  echo "[run_ros2_system] gzserver not seen, continuing"
-}
-
-wait_for_topic() {
-  local topic=$1
-  local timeout=${2:-60}
-  local deadline=$(( $(date +%s) + timeout ))
-  echo "[run_ros2_system] Waiting for topic $topic (timeout ${timeout}s)"
-  while (( $(date +%s) <= deadline )); do
-    if ros2 topic list 2>/dev/null | grep -F -- "$topic" >/dev/null; then
-      echo "[run_ros2_system] Topic $topic detected"
-      return 0
-    fi
-    sleep 1
-  done
-  echo "[run_ros2_system] Timeout waiting for topic $topic" >&2
-  return 1
-}
-
-wait_for_px4_ready() {
-  local timeout=${1:-120}
-  local deadline=$(( $(date +%s) + timeout ))
-  echo "[run_ros2_system] Waiting for PX4 readiness (timeout ${timeout}s)"
-  while (( $(date +%s) <= deadline )); do
-    if [[ -f "$PX4_LOG" ]] && grep -q "Ready for takeoff" "$PX4_LOG" 2>/dev/null; then
-      echo "[run_ros2_system] PX4 reports Ready for takeoff"
-      return 0
-    fi
-    sleep 1
-  done
-  echo "[run_ros2_system] Timeout waiting for PX4 readiness" >&2
-  return 1
-}
-
-# If multi-drone and a dedicated launcher exists, delegate to it.
-if (( DRONE_COUNT > 0 )); then
-  echo "[run_ros2_system] Delegating PX4/Gazebo to launch_px4_gazebo_multi.sh"
-  "$LAUNCH_MULTI_SCRIPT" "${PX4_HEADLESS_ARGS[@]}" --world "$WORLD_PATH" --params "$PARAM_FILE_PATH" &
-  PX4_WRAPPER_PID=$!
-  wait_for_gzserver 40
-  sleep 2
-
-  AGENT_LOG="$LOG_DIR/micro_xrce_agent.out"
-  : > "$AGENT_LOG"
-  "${AGENT_CMD_ARRAY[@]}" >"$AGENT_LOG" 2>&1 &
-  AGENT_PID=$!
-  echo "[run_ros2_system] Micro XRCE Agent started (logs -> $AGENT_LOG)"
-
-  MISSION_LOG="$LOG_DIR/mission_runner.out"
-  : > "$MISSION_LOG"
-  ros2 launch overrack_mission mission.sim.launch.py \
-    params_file:="$PARAM_FILE_PATH" mission_file:="$MISSION_PATH" \
-    >"$MISSION_LOG" 2>&1 &
-  MISSION_PID=$!
-  echo "[run_ros2_system] Mission launch started (logs -> $MISSION_LOG)"
-
-  cleanup_multi_runner() {
-    if [[ $CLEANED_UP -eq 1 ]]; then return; fi
-    CLEANED_UP=1
-    echo "[run_ros2_system] Cleaning up..."
-    if [[ -n "${MISSION_PID:-}" ]]; then
-      kill "$MISSION_PID" 2>/dev/null || true
-      wait "$MISSION_PID" 2>/dev/null || true
-    fi
-    if [[ -n "${AGENT_PID:-}" ]]; then
-      kill "$AGENT_PID" 2>/dev/null || true
-      wait "$AGENT_PID" 2>/dev/null || true
-    fi
-    if [[ -n "${PX4_WRAPPER_PID:-}" ]]; then
-      kill -- -"$PX4_WRAPPER_PID" 2>/dev/null || true
-      wait -- -"$PX4_WRAPPER_PID" 2>/dev/null || wait "$PX4_WRAPPER_PID" 2>/dev/null || true
-    fi
-    if pgrep -f gzserver >/dev/null 2>&1 || pgrep -f gzclient >/dev/null 2>&1; then
-      echo "[run_ros2_system] Forcing Gazebo shutdown..."
-      pkill -9 -f gzserver 2>/dev/null || true
-      pkill -9 -f gzclient 2>/dev/null || true
-    fi
-  }
-  trap cleanup_multi_runner INT TERM EXIT
-  wait "$MISSION_PID"
-  cleanup_multi_runner
-  exit 0
-fi
-
-wait_for_gzserver() {
-  local timeout=${1:-40}
-  local stable=0
-  local start
-  start=$(date +%s)
-  echo "[run_ros2_system] Waiting for gzserver (timeout ${timeout}s)"
-  while (( $(date +%s) - start < timeout )); do
-    if pgrep -f 'gzserver' >/dev/null 2>&1; then
       stable=$((stable + 1))    # <-- niente ((stable++)) che rompe con -e
       if (( stable >= 3 )); then
         echo "[run_ros2_system] gzserver is up and stable"
@@ -519,68 +438,24 @@ wait_for_px4_ready() {
 
 if (( DRONE_COUNT > 0 )); then
   echo "[run_ros2_system] Multi-drone mode: ${DRONE_COUNT} instances"
-  MISSION_LOG="$LOG_DIR/mission_runner.out"
-  : > "$MISSION_LOG"
-  for idx in $(seq 0 $((DRONE_COUNT - 1))); do
-    ns="${DRONE_NS[$idx]}"
-    name="${DRONE_NAME[$idx]}"
-    model="${DRONE_MODEL[$idx]}"
-    mission_file="${DRONE_MISSION[$idx]}"
-    log_dir="${DRONE_LOG_DIR[$idx]}"
-    [[ -z "$log_dir" ]] && log_dir="$LOG_DIR/${ns}"
-    log_dir="$(resolve_with_root "$log_dir")"
-    mkdir -p "$log_dir"
-    px4_log="$log_dir/px4_sitl_default.out"
-    gz_log="$log_dir/px4_gazebo.out"
-    : > "$px4_log"
-    : > "$gz_log"
-    spawn_x="${DRONE_SPAWN_X[$idx]:-0}"
-    spawn_y="${DRONE_SPAWN_Y[$idx]:-0}"
-    spawn_z="${DRONE_SPAWN_Z[$idx]:-0}"
-    spawn_yaw="${DRONE_SPAWN_YAW[$idx]:-0}"
-    pose=$(
-      LC_NUMERIC=C printf "%.3f,%.3f,%.3f,0,0,%.3f" \
-        "$spawn_x" "$spawn_y" "$spawn_z" "$spawn_yaw"
-    )
 
-    instance="$idx"
-    port="${DRONE_MAVLINK_PORT[$idx]:-}"
-    if [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 14540 )); then
-      instance=$(( port - 14540 ))
-    fi
-    model_name="${model}_${ns}"
-    envs=(
-      "PX4_DIR=$PX4_DIR"
-      "PX4_SITL_LOG_FILE=$px4_log"
-      "PX4_SIM_MODEL=$model"
-      "PX4_INSTANCE=$instance"
-      "PX4_GZ_MODEL_NAME=$model_name"
-      "PX4_GZ_MODEL_POSE=$pose"
-    )
-    echo "[run_ros2_system] Starting PX4 instance $instance (ns=$ns model=$model_name pose=$pose)"
-    setsid env "${envs[@]}" \
-      "$LAUNCH_SCRIPT" "${PX4_HEADLESS_ARGS[@]}" --world "$WORLD_PATH" \
-      >>"$gz_log" 2>&1 &
-    PX4_WRAPPER_PIDS+=("$!")
-    PX4_LOGS+=("$px4_log")
-
-    agent_cmd="${DRONE_AGENT_CMD[$idx]:-${YAML_AGENT_DEFAULT:-$DEFAULT_AGENT_CMD}}"
-    [[ -z "$agent_cmd" ]] && agent_cmd="$DEFAULT_AGENT_CMD"
-    read -r -a agent_cmd_array <<< "$agent_cmd"
-    if [[ ${#agent_cmd_array[@]} -eq 0 ]]; then
-      echo "[run_ros2_system] Invalid agent_cmd for $ns" >&2
-      continue
-    fi
-    agent_log="$log_dir/micro_xrce_agent.out"
-    : > "$agent_log"
-    ROS_NAMESPACE="/${ns}" "${agent_cmd_array[@]}" >"$agent_log" 2>&1 &
-    AGENT_PIDS+=("$!")
-    echo "[run_ros2_system] Agent for $ns started (logs -> $agent_log)"
-  done
+  # Avvia PX4 + Gazebo multi-istanza con lo script dedicato (un solo gzserver).
+  "$LAUNCH_MULTI_SCRIPT" "${PX4_HEADLESS_ARGS[@]}" --world "$WORLD_PATH" --params "$PARAM_FILE_PATH" &
+  PX4_WRAPPER_PID=$!
 
   wait_for_gzserver 40
   sleep 2
 
+  # Avvia un unico agent XRCE condiviso (porta fissa dal comando globale).
+  AGENT_LOG="$LOG_DIR/micro_xrce_agent.out"
+  : > "$AGENT_LOG"
+  echo "[run_ros2_system] Agent command (shared): ${AGENT_CMD_ARRAY[*]}"
+  "${AGENT_CMD_ARRAY[@]}" >"$AGENT_LOG" 2>&1 &
+  AGENT_PID=$!
+  echo "[run_ros2_system] Micro XRCE Agent started (logs -> $AGENT_LOG)"
+
+  MISSION_LOG="$LOG_DIR/mission_runner.out"
+  : > "$MISSION_LOG"
   ros2 launch overrack_mission mission.sim.launch.py \
     params_file:="$PARAM_FILE_PATH" mission_file:="$MISSION_PATH" \
     >"$MISSION_LOG" 2>&1 &
@@ -595,16 +470,14 @@ if (( DRONE_COUNT > 0 )); then
       kill "$MISSION_PID" 2>/dev/null || true
       wait "$MISSION_PID" 2>/dev/null || true
     fi
-    for pid in "${AGENT_PIDS[@]}"; do
-      kill "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-    done
-    for pid in "${PX4_WRAPPER_PIDS[@]}"; do
-      if [[ -n "$pid" ]]; then
-        kill -- -"$pid" 2>/dev/null || true
-        wait -- -"$pid" 2>/dev/null || wait "$pid" 2>/dev/null || true
-      fi
-    done
+    if [[ -n "${AGENT_PID:-}" ]]; then
+      kill "$AGENT_PID" 2>/dev/null || true
+      wait "$AGENT_PID" 2>/dev/null || true
+    fi
+    if [[ -n "${PX4_WRAPPER_PID:-}" ]]; then
+      kill -- -"$PX4_WRAPPER_PID" 2>/dev/null || true
+      wait -- -"$PX4_WRAPPER_PID" 2>/dev/null || wait "$PX4_WRAPPER_PID" 2>/dev/null || true
+    fi
     if pgrep -f gzserver >/dev/null 2>&1 || pgrep -f gzclient >/dev/null 2>&1; then
       echo "[run_ros2_system] Forcing Gazebo shutdown..."
       pkill -9 -f gzserver 2>/dev/null || true
