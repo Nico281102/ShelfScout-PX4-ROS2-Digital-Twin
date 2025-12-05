@@ -16,7 +16,7 @@ mission_runner:
     cruise_speed_limits: [0.2, 2.0]
     debug_frames: true
     return_home_safe_z: 2.0
-    sim.disable_link_after_s: 30.0  # optional delay (seconds) before simulating link-loss
+    sim.disable_link_after_s: 30.0 # optional delay (seconds) before simulating link-loss
 inspection_node:
   ros__parameters:
     image_topic: /overrack/iris/front_camera/image_raw

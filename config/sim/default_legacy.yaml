@@ -35,7 +35,7 @@ px4_param_setter:
     # usa MAVLink UDP server standard di PX4 SITL
     mavlink_url: udp://:14540
     px4_params:
-      SIM_BAT_DRAIN: 20.0   # secondi per scaricare del tutto (float) 60s def
+      SIM_BAT_DRAIN: 25.0   # secondi per scaricare del tutto (float) 60s def
       SIM_BAT_MIN_PCT: 0.03    # percentuale minima (default 50)
       BAT1_N_CELLS: 3
       BAT1_V_CHARGED: 4.15

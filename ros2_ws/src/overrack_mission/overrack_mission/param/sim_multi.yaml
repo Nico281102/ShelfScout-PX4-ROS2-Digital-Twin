@@ -2,11 +2,11 @@
 run_ros2_system:
   ros__parameters:
     world_file: worlds/overrack_indoor.world
-    agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4
+    # fallback; di norma ogni drone dichiara il proprio agent_cmd
     # Blob YAML serializzato per evitare limiti rcl su liste di mappe
     drones_yaml: |
       - name: drone1
-        namespace: drone1
+        namespace: px4_1
         model: iris_opt_flow
         spawn: {x: 2.5, y: 1.5, z: 0.3, yaw: -1.57}
         mission_file: config/mission_precomputed.yaml
@@ -14,11 +14,11 @@ run_ros2_system:
         mavlink_udp_port: 14540
         agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
         px4_params: { SIM_BAT_DRAIN: 20.0 }
-        px4_namespace: ""
+        px4_namespace: "/px4_1"
         log_dir: data/logs/drone1
 
       - name: drone2
-        namespace: drone2
+        namespace: px4_2
         model: iris_opt_flow
         spawn: {x: -2.5, y: -1.5, z: 0.3, yaw: 1.57}
         mission_file: config/mission_precomputed.yaml
@@ -26,7 +26,7 @@ run_ros2_system:
         mavlink_udp_port: 14550
         agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
         px4_params: { SIM_BAT_DRAIN: 25.0 }
-        px4_namespace: ""
+        px4_namespace: "/px4_2"
         log_dir: data/logs/drone2
 
 mission_runner:
@@ -39,7 +39,7 @@ mission_runner:
     cruise_speed_limits: [0.2, 2.0]
     debug_frames: true
     return_home_safe_z: 2.0
-    sim.disable_link_after_s: 30.0
+    sim.disable_link_after_s: -1.0
 
 inspection_node:
   ros__parameters:

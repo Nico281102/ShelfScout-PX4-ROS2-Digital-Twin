@@ -1,0 +1,18 @@
+# Esempio di configurazione multi-drone (usare con --params config/sim/multi.yaml)
+run_ros2_system:
+  ros__parameters:
+    world_file: worlds/overrack_indoor.world
+    agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4  # fallback; di norma ogni drone dichiara il proprio agent_cmd
+    # Blob YAML serializzato per evitare limiti rcl su liste di mappe
+    drones_yaml: |
+      - name: drone1
+        namespace: px4_1
+        model: iris
+        spawn: {x: 1.0, y: 1.0, z: 0.3, yaw: 0}
+        mission_file: config/mission_precomputed.yaml
+        mav_sys_id: 1
+        mavlink_udp_port: 14540
+        agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
+        px4_params: { SIM_BAT_DRAIN: 20.0 }
+        px4_namespace: "/px4_1"
+        log_dir: data/logs/drone1
