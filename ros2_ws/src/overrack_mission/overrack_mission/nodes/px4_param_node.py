@@ -155,11 +155,11 @@ class PX4ParamSetter(Node):
                     current = await getter(name)  # type: ignore[misc]
                     self.get_logger().info(
                         f"Parametro impostato: {name} = {cast_value} "
-                        f"(prima={current_before}, letto={current})"
+                        f"(before={current_before}, after={current})"
                     )
                 except Exception:
                     self.get_logger().info(
-                        f"Parametro impostato: {name} = {cast_value} (prima={current_before})"
+                        f"Parametro impostato: {name} = {cast_value} (before={current_before})"
                     )
             except Exception as exc:  # noqa: BLE001
                 self.get_logger().error(f"Errore impostando {name}: {exc}")
