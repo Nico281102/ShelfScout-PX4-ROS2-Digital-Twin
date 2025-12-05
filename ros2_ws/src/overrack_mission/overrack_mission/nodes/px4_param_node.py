@@ -145,12 +145,22 @@ class PX4ParamSetter(Node):
                 elif isinstance(value, int):
                     setter = drone.param.set_param_int
                     getter = drone.param.get_param_int
+                current_before = None
+                try:
+                    current_before = await getter(name)  # type: ignore[misc]
+                except Exception:
+                    pass
                 await setter(name, cast_value)  # type: ignore[arg-type]
                 try:
                     current = await getter(name)  # type: ignore[misc]
-                    self.get_logger().info(f"Parametro impostato: {name} = {cast_value} (letto={current})")
+                    self.get_logger().info(
+                        f"Parametro impostato: {name} = {cast_value} "
+                        f"(prima={current_before}, letto={current})"
+                    )
                 except Exception:
-                    self.get_logger().info(f"Parametro impostato: {name} = {cast_value}")
+                    self.get_logger().info(
+                        f"Parametro impostato: {name} = {cast_value} (prima={current_before})"
+                    )
             except Exception as exc:  # noqa: BLE001
                 self.get_logger().error(f"Errore impostando {name}: {exc}")
 
