@@ -8,7 +8,7 @@
 #   - drones configuration is read from the params YAML (run_ros2_system.ros__parameters.drones_yaml).
 #
 # Usage (normally internal from run_ros2_system.sh):
-#   scripts/launch_px4_gazebo_multi.sh --params <sim_multi.yaml> [--world <world>] [--headless]
+#   scripts/launch_px4_gazebo_multi.sh --params config/sim/multi.yaml [--world <world>] [--headless]
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 
@@ -177,7 +177,7 @@ for idx in $(seq 0 $((DRONE_COUNT - 1))); do
   SPAWN_Y="${DRONE_SPAWN_Y[$idx]:-0}"
   SPAWN_Z="${DRONE_SPAWN_Z[$idx]:-0}"
   SPAWN_YAW="${DRONE_SPAWN_YAW[$idx]:-0}"
-  SCRIPT_ENTRIES+=("${TARGET_MODEL}:${idx+1}:${SPAWN_X}:${SPAWN_Y}")
+  SCRIPT_ENTRIES+=("${TARGET_MODEL}:${idx+1}:${SPAWN_X}:${SPAWN_Y}:${SPAWN_Z}:${SPAWN_YAW}")
   echo "[launch_px4_gazebo_multi] Drone $idx ns=$NS model=$MODEL (runner=${TARGET_MODEL}) spawn=($SPAWN_X,$SPAWN_Y,$SPAWN_Z,$SPAWN_YAW)"
 done
 

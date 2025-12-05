@@ -13,20 +13,20 @@ ROS 2 nodes (mission_runner + inspection_node + metrics_node + torch plugin)
     ↕  data/metrics, data/logs, data/images
 ```
 
-- The launch scripts read `ros2_ws/src/overrack_mission/overrack_mission/param/sim.yaml` to choose the world, mission file, and agent command. Edit that YAML instead of passing long CLI flags.
+- The launch scripts read `config/sim/default.yaml` to choose the world, mission file, and agent command. Edit that YAML instead of passing long CLI flags.
 - `mission_runner` applies the mission YAML (see `docs/mission_language.md`) and publishes Offboard setpoints; inspection + metrics live in the same executor to keep clocks aligned.
 - PX4 ↔ ROS traffic uses `px4_msgs` over the `/fmu/in/*` and `/fmu/out/*` topics. Topic mapping, QoS, and agent setup are detailed in `docs/ROS2_PX4_BRIDGING.md`.
 - Runtime artefacts are persisted under `data/` (logs, metrics, images) so every run is auditable.
 
 ## Runtime Flow
-1. `scripts/run_ros2_system.sh` sources `scripts/.env`, reads `sim.yaml`, and spawns PX4 + Gazebo via `scripts/launch_px4_gazebo.sh`.
+1. `scripts/run_ros2_system.sh` sources `scripts/.env`, reads `config/sim/default.yaml`, and spawns PX4 + Gazebo via `scripts/launch_px4_gazebo.sh`.
 2. The same script launches the XRCE bridge (defaults to `MicroXRCEAgent udp4 ...`) and tails logs to `data/logs/micro_xrce_agent.out`.
 3. After ensuring `ros2_ws/install/setup.bash` exists (builds if missing), it launches `mission_runner` (with inspection + metrics) using the same param file.
 4. `px4_param_setter` (optional) pushes battery and failsafe parameters to PX4 using MAVLink UDP, keeping SITL settings consistent across runs.
 5. Data products (metrics, images, logs) are written under `data/` and stay aligned to the mission timestamp for later analysis.
 
 ## Data and Coordinates
-- Mission plans stay ENU; the PX4 adapter converts to NED, subtracts the spawn offset learned from the first `/fmu/out/vehicle_local_position`, and clamps setpoints to `world_bounds` from `sim.yaml`.
+- Mission plans stay ENU; the PX4 adapter converts to NED, subtracts the spawn offset learned from the first `/fmu/out/vehicle_local_position`, and clamps setpoints to `world_bounds` from `config/sim/default.yaml`.
 - Metrics and images are written under `data/metrics/<timestamp>/` and `data/images/`; logs for PX4, the agent, and the mission runner live in `data/logs/`.
 - Gazebo models from PX4 and this repo are added to `GAZEBO_MODEL_PATH` automatically by the launch scripts; the torch plugin is loaded from `ros2_ws/install/lib` via `GAZEBO_PLUGIN_PATH`.
 

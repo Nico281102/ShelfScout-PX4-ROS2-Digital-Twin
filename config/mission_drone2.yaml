@@ -2,19 +2,19 @@ api_version: 1
 frame_id: map
 
 defaults:
-  altitude_m: 1.0
-  hover_time_s: 2.0
-  cruise_speed_mps: 0.25
+  altitude_m: 1.2
+  hover_time_s: 3.0
+  cruise_speed_mps: 0.6
 
 mode: precomputed
-route_file: routes/overrack_default.yaml
+route_file: routes/drone2_shelf_west.yaml
 
 inspection:
   enable: true
   timeout_s: 5.0
 
 fallback:
-  battery_warning: ["return_home", "land"]
+  battery_warning: ["return_home"]
   battery_critical: ["land"]
 
 avoidance: stop
