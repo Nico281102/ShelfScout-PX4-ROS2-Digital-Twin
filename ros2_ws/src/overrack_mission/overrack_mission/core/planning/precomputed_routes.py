@@ -26,7 +26,6 @@ class RouteStep:
 @dataclass
 class Route:
     name: str
-    frame_id: str
     steps: List[RouteStep] = field(default_factory=list)
     default_altitude_m: float = 2.5
     default_hover_s: float = 2.0
@@ -46,7 +45,6 @@ def load_route(path: Path) -> Route:
         raise RouteFormatError("'route' must be a mapping")
 
     name = str(route_raw.get("name", path.stem))
-    frame_id = str(route_raw.get("frame_id", "map"))
     default_altitude = float(route_raw.get("default_altitude_m", 2.5))
     default_hover = float(route_raw.get("default_hover_s", 2.0))
 
@@ -76,7 +74,6 @@ def load_route(path: Path) -> Route:
 
     return Route(
         name=name,
-        frame_id=frame_id,
         steps=steps,
         default_altitude_m=default_altitude,
         default_hover_s=default_hover,

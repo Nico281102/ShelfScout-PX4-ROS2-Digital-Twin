@@ -60,6 +60,14 @@ def _default_mavlink_url(config: dict) -> str:
     return _nested(config, ["px4_param_setter", "ros__parameters", "mavlink_url"])
 
 
+def _mission_runner_defaults(config: dict) -> dict:
+    params = (
+        config.get("mission_runner", {})
+        .get("ros__parameters", {})
+    )
+    return params if isinstance(params, dict) else {}
+
+
 SUPPORTED_MULTI_MODELS = {"iris", "plane", "standard_vtol", "rover", "r1_rover", "typhoon_h480"}
 
 
@@ -153,6 +161,7 @@ def generate_launch_description() -> LaunchDescription:
         mission_default = _default_mission(config)
         model_default = _default_model(config) or "iris_opt_flow"
         mavlink_default = _default_mavlink_url(config) or "udp://:14540"
+        mission_runner_defaults = _mission_runner_defaults(config)
 
         # Multi-drone path (>=1 entry). With one entry we still namespaced to keep symmetry.
         if drones:
@@ -168,8 +177,10 @@ def generate_launch_description() -> LaunchDescription:
                     ns = f"px4_{idx}"
                 vehicle_id = int(drone.get("vehicle_id") or drone.get("mav_sys_id") or idx)
                 px4_ns = str(drone.get("px4_namespace") or "").strip("/").strip()
+                drone_runner_cfg = drone.get("mission_runner") if isinstance(drone.get("mission_runner"), dict) else {}
                 mission_file = (
-                    drone.get("mission_file")
+                    drone_runner_cfg.get("mission_file")
+                    or drone.get("mission_file")
                     or mission_override
                     or mission_default
                 )
@@ -181,12 +192,14 @@ def generate_launch_description() -> LaunchDescription:
                     or mavlink_default
                 )
 
-                runner_params = {
+                runner_params = dict(mission_runner_defaults)
+                runner_params.update(drone_runner_cfg)
+                runner_params.update({
                     "vehicle_ns": ns,
                     "vehicle_id": vehicle_id,
                     "gazebo_model_name": gazebo_model,
                     "px4_namespace": px4_ns,
-                }
+                })
                 if mission_value:
                     runner_params["mission_file"] = mission_value
 

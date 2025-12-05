@@ -1,6 +1,5 @@
 route:
   name: drone2_shelf_west
-  frame_id: map
   default_altitude_m: 1.2
   default_hover_s: 3.0
 

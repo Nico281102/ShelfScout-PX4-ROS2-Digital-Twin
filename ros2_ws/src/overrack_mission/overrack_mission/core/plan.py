@@ -47,15 +47,12 @@ class MissionStep:
 
 @dataclass
 class MissionPlan:
-    frame_id: str
     altitude_m: float
     hover_time_s: float
     cruise_speed_mps: float
     steps: List[MissionStep]
     inspection: InspectionConfig = field(default_factory=InspectionConfig)
     fallback: Dict[str, List[FallbackAction]] = field(default_factory=dict)
-    avoidance: Optional[str] = None
-    ignore_gps: bool = False
     land_on_finish: bool = False
     raw: Dict[str, object] = field(default_factory=dict)
 
@@ -79,10 +76,6 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
     version = data.get("api_version")
     if version != 1:
         raise MissionPlanError("Mission 'api_version' must be 1")
-
-    frame_id = data.get("frame_id", "map")
-    if not isinstance(frame_id, str) or not frame_id:
-        raise MissionPlanError("Mission 'frame_id' must be a non-empty string")
 
     defaults = data.get("defaults", {})
     if not isinstance(defaults, dict):
@@ -132,23 +125,15 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
 
     fallback_cfg = _parse_fallbacks(data.get("fallback"))
 
-    avoidance = data.get("avoidance")
-    if avoidance is not None and not isinstance(avoidance, str):
-        raise MissionPlanError("Mission 'avoidance' must be a string if provided")
-
-    ignore_gps = bool(data.get("ignore_gps", False))
     land_on_finish = bool(data.get("land_on_finish", False))
 
     plan = MissionPlan(
-        frame_id=frame_id,
         altitude_m=altitude,
         hover_time_s=hover_time,
         cruise_speed_mps=cruise_speed,
         steps=steps,
         inspection=inspection_cfg,
         fallback=fallback_cfg,
-        avoidance=avoidance,
-        ignore_gps=ignore_gps,
         land_on_finish=land_on_finish,
         raw=data,
     )

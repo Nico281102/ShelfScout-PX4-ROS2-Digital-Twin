@@ -5,7 +5,6 @@ This document defines the version 1 YAML schema consumed by `overrack_mission` f
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
 | `api_version` | int | yes | Must be `1`; used to guard parser changes. |
-| `frame_id` | string | yes | Reference frame for positions (default `map`). |
 | `defaults` | map | yes | Global parameters (altitude, hover time, cruise speed, planner options). |
 | `mode` | string | yes | `explicit`, `precomputed`, or `coverage`. Drives how the path is produced. |
 | `waypoints` | list | conditional | Ordered `[x, y]` pairs used when `mode: explicit`. |
@@ -13,8 +12,6 @@ This document defines the version 1 YAML schema consumed by `overrack_mission` f
 | `area.polygon` | list | conditional | Closed polygon (list of `[x, y]`) for `mode: coverage`. |
 | `inspection` | map | optional | Enables the inspection stage, timeout, and optional acknowledgement gating. |
 | `fallback` | map | optional | Trigger → action list map; defaults ensure safe landing if omitted. |
-| `avoidance` | enum | optional | Behaviour when avoidance is triggered (`stop`, `rtl`, `land`). |
-| `ignore_gps` | bool | optional | Force PX4 to rely on vision/position estimates indoors. |
 | `land_on_finish` | bool | optional | When true the FSM executes `return_home` + `land` at the end. |
 
 ## Defaults Block
@@ -34,7 +31,7 @@ defaults:
 
 ## Mission Modes
 ### Explicit Mode
-Provide `mode: explicit` and a `waypoints` array of `[x, y]` pairs measured in metres relative to `frame_id`. Each waypoint inherits `defaults.altitude_m` and can be extended with inline dictionaries if per-waypoint overrides are needed (e.g., `{x: 2.0, y: 1.0, hover_time_s: 4.0}`).
+Provide `mode: explicit` and a `waypoints` array of `[x, y]` pairs measured in metres in ENU (map frame). Each waypoint inherits `defaults.altitude_m` and can be extended with inline dictionaries if per-waypoint overrides are needed (e.g., `{x: 2.0, y: 1.0, hover_time_s: 4.0}`).
 
 ### Precomputed Route Mode
 Set `mode: precomputed` and reference an external route file:
@@ -102,15 +99,9 @@ fallback:
 
 Actions execute sequentially. If an action is unknown the parser logs a warning and skips it, keeping backward compatibility with older plans. When `land_on_finish: true` is set, the mission runner implicitly appends `["return_home", "land"]` once all waypoints are complete.
 
-## Optional Flags
-- `avoidance`: choose how to react to an avoidance event (`stop`, `rtl`, `land`).
-- `ignore_gps`: set to `true` for indoor missions relying on vision/odometry; the PX4 commander switches to the appropriate estimator combination.
-- `land_on_finish`: described above; defaults to `false` for hover-and-hold behaviour.
-
 ## Example (Explicit Mission)
 ```yaml
 api_version: 1
-frame_id: map
 mode: explicit
 defaults:
   altitude_m: 2.5
@@ -135,7 +126,6 @@ land_on_finish: true
 ## Example (Coverage Mission)
 ```yaml
 api_version: 1
-frame_id: map
 mode: coverage
 defaults:
   altitude_m: 2.8
@@ -153,7 +143,6 @@ inspection:
   enable: false
 fallback:
   battery_warning: ["return_home", "land"]
-ignore_gps: true
 ```
 
 Use these templates as starting points and keep `api_version: 1` up to date whenever the parser evolves to ensure missions fail fast when the schema changes.

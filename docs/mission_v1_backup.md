@@ -4,7 +4,6 @@ This document summarises the YAML schema consumed by `overrack_mission`.
 
 ```yaml
 api_version: 1
-frame_id: map
 
 defaults:
   altitude_m: 2.5
@@ -31,8 +30,6 @@ fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
 
-avoidance: stop
-ignore_gps: true
 land_on_finish: false
 ```
 

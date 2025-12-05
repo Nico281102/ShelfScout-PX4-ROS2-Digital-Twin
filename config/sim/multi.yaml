@@ -9,7 +9,6 @@ run_ros2_system:
         namespace: px4_1
         model: iris
         spawn: {x: 1.0, y: 1.0, z: 0.3, yaw: 0}
-        mission_file: config/mission_drone1.yaml
         mavlink_udp_port: 14541
         agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
         px4_params:
@@ -25,12 +24,13 @@ run_ros2_system:
           COM_LOW_BAT_ACT: 0
         px4_namespace: "/px4_1"
         log_dir: data/logs/drone1
+        mission_runner:
+          mission_file: config/mission_drone1.yaml
 
       - name: drone2
         namespace: px4_2
         model: iris
         spawn: {x: -2.5, y: -1.5, z: 0.3, yaw: 1.57}
-        mission_file: config/mission_drone2.yaml
         mavlink_udp_port: 14542
         agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
         px4_params:
@@ -46,18 +46,18 @@ run_ros2_system:
           COM_LOW_BAT_ACT: 0
         px4_namespace: "/px4_2"
         log_dir: data/logs/drone2
+        mission_runner:
+          mission_file: config/mission_drone2.yaml
 
 mission_runner:
   ros__parameters:
-    mission_file: config/mission_precomputed.yaml
-    gazebo_model_name: iris_opt_flow
     world_bounds.x: [-5.0, 5.0]
     world_bounds.y: [-4.0, 4.0]
     world_bounds.z: [-3.0, -0.1]
     cruise_speed_limits: [0.2, 2.0]
     debug_frames: true
     return_home_safe_z: 2.0
-    sim.disable_link_after_s: 30.0
+    sim.disable_link_after_s: 15.0
 
 inspection_node:
   ros__parameters:

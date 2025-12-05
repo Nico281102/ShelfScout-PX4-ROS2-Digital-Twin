@@ -1,6 +1,5 @@
 route:
   name: overrack_default
-  frame_id: map
   default_altitude_m: 1
   default_hover_s: 2.0
 

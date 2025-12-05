@@ -11,7 +11,6 @@ Authoring guidelines for the current single-drone mission YAMLs. The canonical s
 ## Minimum Skeleton
 ```yaml
 api_version: 1
-frame_id: map
 mode: explicit
 defaults:
   altitude_m: 2.5

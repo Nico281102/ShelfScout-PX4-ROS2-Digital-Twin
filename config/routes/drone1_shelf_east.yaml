@@ -1,6 +1,5 @@
 route:
   name: drone1_shelf_east
-  frame_id: map
   default_altitude_m: 1.2
   default_hover_s: 3.0
 
