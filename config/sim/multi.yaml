@@ -7,7 +7,7 @@ run_ros2_system:
     drones_yaml: |
       - name: drone1
         namespace: px4_1
-        model: iris
+        model: iris_opt_flow
         spawn: {x: 1.0, y: 1.0, z: 0.3, yaw: 0}
         mavlink_udp_port: 14541
         agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
@@ -25,11 +25,17 @@ run_ros2_system:
         px4_namespace: "/px4_1"
         log_dir: data/logs/drone1
         mission_runner:
-          mission_file: config/mission_drone1.yaml
+          mission_file: config/mission_precomputed.yaml
+          sim.disable_link_after_s: -1.0
+        inspection_node:
+          image_topic: overrack/iris/front_camera/image_raw
+          low_light_threshold: 90.0
+          suspect_variance: 12.0
+          publish_period_s: 0.5
 
       - name: drone2
         namespace: px4_2
-        model: iris
+        model: iris_opt_flow
         spawn: {x: -2.5, y: -1.5, z: 0.3, yaw: 1.57}
         mavlink_udp_port: 14542
         agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
@@ -57,7 +63,7 @@ mission_runner:
     cruise_speed_limits: [0.2, 2.0]
     debug_frames: true
     return_home_safe_z: 2.0
-    sim.disable_link_after_s: 15.0
+    sim.disable_link_after_s: 30.0
 
 inspection_node:
   ros__parameters:

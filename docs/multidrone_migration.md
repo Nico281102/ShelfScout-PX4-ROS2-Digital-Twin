@@ -79,15 +79,15 @@ Nota: lanciamo un agent Micro XRCE per ogni drone con porta dedicata; specifica 
 - Spostati i parametri single/multi in `config/sim/default.yaml` e `config/sim/multi.yaml` con fallback legacy nei launcher; le route ora vivono tutte in `config/routes/`.
 - Aggiunte missioni precomputed per i due corridoi (`config/mission_drone1.yaml` con `routes/drone1_shelf_east.yaml`, `config/mission_drone2.yaml` con `routes/drone2_shelf_west.yaml`) e collegate ai rispettivi droni in `config/sim/multi.yaml`.
 - Adeguato `run_ros2_system.sh` e `mission.sim.launch.py` per iterare i blocchi `drones`, creare namespace ROS separati e passare per-drone mission file/parametri/QoS senza duplicare codice.
-- Allineata la risoluzione del nome modello Gazebo in `mission.sim.launch.py` agli alias di `sitl_multiple_run.sh` (iris_opt_flow -> iris, suffix `_k`), così la Telemetry trova il modello corretto e cattura lo spawn offset invece di andare in timeout.
-- Usato `sitl_multiple_run.sh` per PX4 multi-istanza: un solo `gzserver`, spawn offset dal YAML, mapping `iris_opt_flow`→`iris` (limitazione dello script), log separati per istanza.
+- Allineata la risoluzione del nome modello Gazebo in `mission.sim.launch.py` ai nomi effettivi usati da `sitl_multiple_run.sh` (inclusi `iris_opt_flow` e suffix `_k`), così la Telemetry trova il modello corretto e cattura lo spawn offset invece di andare in timeout.
+- Usato `sitl_multiple_run.sh` per PX4 multi-istanza: un solo `gzserver`, spawn offset dal YAML, `iris_opt_flow` supportato (airframe riusato da iris via `PX4_SIM_MODEL`), log separati per istanza.
 - Stabilita l’architettura XRCE: un Micro XRCE Agent per drone (porte dedicate) con client PX4 chiave/namespace coerente (`/px4_k`), lanciati prima dei nodi ROS per evitare “EKF local position” infinito.
 - Corretto il mismatch SYSID/`target_system`: Telemetry legge `system_id` da `VehicleStatus` e SetpointPublisher lo usa per indirizzare i `VehicleCommand` (fallback a `vehicle_id` con warning), così arming/offboard funzionano per tutte le istanze anche se `sitl_multiple_run` applica l’offset `mavlink_id=1+N`.
 - Documentati i problemi ricorrenti (plugin Gazebo ROS, modelli supportati, naming dei topic PX4) e la procedura di verifica con hover/land per ogni drone.
 
 ## Problemi incontrati e fix
 - Plugin Gazebo ROS non trovati (libgazebo_ros_api_plugin.so, libgazebo_ros_factory.so): esporta `GAZEBO_PLUGIN_PATH` includendo `/opt/ros/$ROS_DISTRO/lib` anche nel launcher multi.
-- `iris_opt_flow` non supportato da `sitl_multiple_run.sh`: mappa a `iris` lato runner (loggato come runner=iris) per far partire la simulazione.
+- `iris_opt_flow` ora supportato da `sitl_multiple_run.sh`: usa l’SDF dedicato e riutilizza l’airframe di iris (`PX4_SIM_MODEL=gazebo-classic_iris`) se non definito diversamente.
 - Attesa infinita su “Waiting for EKF local position…” in multi-istanza: senza micrortps_client/Agent per ogni PX4 non arrivano i topic `/fmu/out/*`; avvia un client per istanza con porte dedicate e un Agent per drone (namespace corretto) prima di lanciare i nodi ROS.
 - Topics PX4 namespacizzati: se il bridge pubblica solo `/fmu/...`, lascia `px4_namespace` vuoto nei nodi; il namespacing PX4 va riattivato solo quando anche il bridge usa `/droneX/fmu/...`.
 - Architettura agent XRCE: usare un Micro XRCE-DDS Agent per drone su porta dedicata (es. 8888, 8889, ...). `sitl_multiple_run.sh` imposta `px4_instance`, `UXRCE_DDS_KEY` e il namespace ROS (`/px4_1`, `/px4_2`, …); i nodi ROS vanno lanciati nello stesso namespace (`__ns:=/px4_k`) mantenendo i topic PX4 su `/fmu/in|out/*`. Così si evita la collisione tra client_key e si ricevono correttamente i topic di ogni istanza.
@@ -95,11 +95,30 @@ Nota: lanciamo un agent Micro XRCE per ogni drone con porta dedicata; specifica 
 - Mismatch MAV_SYS_ID vs `target_system`: `sitl_multiple_run.sh` genera `--mavlink_id $((1+N))` con `N` che parte da 1, quindi le istanze di default hanno SYSID 2,3,... mentre il mission runner inviava `VehicleCommand` a 1,2; PX4 ignorava arming/offboard sul drone “sbagliato”. Fix: Telemetry legge `system_id` da `VehicleStatus` e SetpointPublisher usa quel valore per `target_system`/`source_system` (fallback a `vehicle_id` con warning), così i comandi seguono sempre il SYSID reale.
 
 - **Problemi**
-  - multi run conosce solo irisi, plane, standard_vtol, rover, r1_rover, typhoon_h480 non consoce irir opt flow!
+  - `sitl_multiple_run.sh` cercava i template solo sotto `PX4-Autopilot/Tools/.../models/<model>/<model>.sdf.jinja`, ignorando `GAZEBO_MODEL_PATH`: il nostro `models/iris_opt_flow/iris_opt_flow.sdf` (e le aggiunte camera/torcia) veniva ignorato e lo spawn falliva con `TemplateNotFound`. Fix: aggiunta funzione di lookup sul `GAZEBO_MODEL_PATH` e template Jinja nel repo (`models/iris_opt_flow/iris_opt_flow.sdf.jinja`). Snippet della patch:
+    ```bash
+    find_model_template() {
+      # cerca <model>.sdf.jinja in GAZEBO_MODEL_PATH, altrimenti fallback PX4
+      IFS=':' read -r -a model_paths <<< "${GAZEBO_MODEL_PATH:-}"
+      for path in "${model_paths[@]}"; do
+        if [[ -f "${path}/${search_model}/${search_model}.sdf.jinja" ]]; then
+          echo "${path}/${search_model}/${search_model}.sdf.jinja"; return 0; fi
+      done
+      fallback="${src_path}/Tools/.../models/${search_model}/${search_model}.sdf.jinja"
+      [[ -f "$fallback" ]] && echo "$fallback"
+    }
+    ```
+    Così `iris_opt_flow` usa il template locale e `jinja_gen.py` può inserire porte/ID per ogni istanza.
+  - `jinja_gen.py` richiede `env_dir` coerente con il template: prima era sempre impostato al path PX4 e i template esterni fallivano comunque. Fix: lo script ora passa come `env_dir` la cartella del template (es. `models/iris_opt_flow`) quando usa modelli fuori da PX4.
+  - multi run conosce solo irisi, plane, standard_vtol, rover, r1_rover, typhoon_h480 oltre a `iris_opt_flow`; per altri modelli non previsti occorre estendere la whitelist.
   
 - TODO
--  dato che stiamo usando il modello iris e non iris opt flwo (perceh sitl_multiple_run non puo usarlo) possiamo creare il nostro modello custom iris
+-  se servono modelli custom oltre a `iris_opt_flow`, valutare duplicato dell’iris con estensioni e aggiunta alla whitelist di `sitl_multiple_run.sh`
 -  Dobbiamo mandare i setting px4 in modo elettivo in base al drone, cambaire la classe (modifica) e ovviametne anche il .yalm
 -  testare se funziona davvero il lalto della connessione!!!
 - Elimnar i file in param nel workspace ros2 li abbimao in config
 - Capire se possiamo non piu utilizzare la logica di drone singolo dopo aver generalizzato
+- inspection node, serve davvero? ha senso tenerlo?
+- debug framse a che serve 
+- precomputed? teniamo?
+- torch controller non utilizzabile probabilemte con mult_sitl 
