@@ -68,7 +68,7 @@ def _mission_runner_defaults(config: dict) -> dict:
     return params if isinstance(params, dict) else {}
 
 
-SUPPORTED_MULTI_MODELS = {"iris", "plane", "standard_vtol", "rover", "r1_rover", "typhoon_h480"}
+SUPPORTED_MULTI_MODELS = {"iris", "plane", "standard_vtol", "rover", "r1_rover", "typhoon_h480", "iris_opt_flow"}
 
 
 def _resolve_gazebo_model_name(drone: dict, idx: int, model_default: str) -> str:
@@ -87,7 +87,7 @@ def _resolve_gazebo_model_name(drone: dict, idx: int, model_default: str) -> str
 
     resolved_model = base_model
     if base_model not in SUPPORTED_MULTI_MODELS:
-        # sitl_multiple_run.sh maps unsupported models (e.g. iris_opt_flow) to iris
+        # sitl_multiple_run.sh maps unsupported models to iris
         resolved_model = "iris"
 
     return f"{resolved_model}_{idx}"

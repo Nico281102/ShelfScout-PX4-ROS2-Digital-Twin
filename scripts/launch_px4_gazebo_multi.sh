@@ -159,19 +159,15 @@ fi
 # -----------------------------------------------------------------------------
 
 SCRIPT_ENTRIES=()
-SUPPORTED_MODELS=("iris" "plane" "standard_vtol" "rover" "r1_rover" "typhoon_h480")
+SUPPORTED_MODELS=("iris" "plane" "standard_vtol" "rover" "r1_rover" "typhoon_h480" "iris_opt_flow")
 
 for idx in $(seq 0 $((DRONE_COUNT - 1))); do
   NS="${DRONE_NS[$idx]}"
   MODEL="${DRONE_MODEL[$idx]:-iris_opt_flow}"
   TARGET_MODEL="$MODEL"
   if [[ ! " ${SUPPORTED_MODELS[*]} " =~ " ${MODEL} " ]]; then
-    if [[ "$MODEL" == "iris_opt_flow" ]]; then
-      TARGET_MODEL="iris"
-    else
-      echo "[launch_px4_gazebo_multi] Model $MODEL not supported by sitl_multiple_run.sh; falling back to iris"
-      TARGET_MODEL="iris"
-    fi
+    echo "[launch_px4_gazebo_multi] Model $MODEL not supported by sitl_multiple_run.sh; falling back to iris"
+    TARGET_MODEL="iris"
   fi
   SPAWN_X="${DRONE_SPAWN_X[$idx]:-0}"
   SPAWN_Y="${DRONE_SPAWN_Y[$idx]:-0}"
