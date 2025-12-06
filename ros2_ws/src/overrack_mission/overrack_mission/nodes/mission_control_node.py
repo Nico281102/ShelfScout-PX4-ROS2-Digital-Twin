@@ -80,7 +80,6 @@ class MissionControlNode(Node):
         )
 
         ned_bounds = self._load_world_bounds()
-        cruise_limits = self._load_cruise_speed_limits()
         debug_frames = bool(self.declare_parameter("debug_frames", False).value)
         safe_z_param = self.declare_parameter("return_home_safe_z", None)
         return_home_safe_z = safe_z_param.value
@@ -125,7 +124,6 @@ class MissionControlNode(Node):
                 runtime,
                 mission_path,
                 enu_bounds=enu_bounds_from_ned(ned_bounds),
-                cruise_speed_limits=cruise_limits,
                 debug_frames=debug_frames,
                 return_home_safe_z=return_home_safe_z,
             )
@@ -205,9 +203,6 @@ class MissionControlNode(Node):
             AxisBounds(y_min, y_max),
             AxisBounds(z_min, z_max),
         )
-
-    def _load_cruise_speed_limits(self) -> Tuple[float, float]:
-        return self._declare_bounds_pair("cruise_speed_limits", [0.2, 2.0])
 
     def _declare_bounds_pair(self, name: str, default: list[float]) -> Tuple[float, float]:
         param = self.declare_parameter(name, default)

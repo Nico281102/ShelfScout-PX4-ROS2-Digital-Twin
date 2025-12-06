@@ -5,8 +5,7 @@ This document summarises the YAML schema consumed by `overrack_mission`.
 ```yaml
 api_version: 1
 
-defaults:
-  cruise_speed_mps: 1.0
+defaults: {}
 
 route_file: routes/overrack_default.yaml
 

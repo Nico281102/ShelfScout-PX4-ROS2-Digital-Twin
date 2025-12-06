@@ -11,8 +11,7 @@ Authoring guidelines for the current single-drone mission YAMLs. The canonical s
 ## Minimum Skeleton
 ```yaml
 api_version: 1
-defaults:
-  cruise_speed_mps: 1.0
+defaults: {}
 route_file: routes/overrack_default.yaml
 inspection:
   enable: true
@@ -24,11 +23,11 @@ land_on_finish: true
 ```
 - Keep `api_version: 1` to guard parser changes.
 - Cruise speed is read from `defaults`; altitude/hover timings come from the referenced route (`default_altitude_m`, `default_hover_s`, and per-step `hover_s`).
-- Missions fail fast when a waypoint breaches `world_bounds` from `config/sim/default.yaml` or `cruise_speed_mps` falls outside `cruise_speed_limits`.
+– Missions fail fast quando un waypoint esce dai `world_bounds` definiti nel params; la cruise speed non è più validata lato mission.
 
 ## Field Checklist
 - `route_file`: required. Points to the YAML consumed by `precomputed_routes.py`.
-- `defaults`: set `cruise_speed_mps`; altitude/hover live in the route file instead.
+- `defaults`: resta per eventuali parametri comuni; altitude/hover restano nel route file.
 - `inspection`: `enable`, `timeout_s`, optional `require_ack`, `image_topic`. `LOW_LIGHT` only toggles the torch via `torch_controller`.
 - `fallback`: map battery triggers to actions (`return_home`, `land`, `hold:<duration>`, `increase_hover:<duration>`, `resume`). Unknown actions are ignored with a warning.
 - `land_on_finish`: appends `return_home` + `land` when the route is complete.

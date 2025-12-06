@@ -49,7 +49,6 @@ class MissionStep:
 class MissionPlan:
     altitude_m: float
     hover_time_s: float
-    cruise_speed_mps: float
     steps: List[MissionStep]
     inspection: InspectionConfig = field(default_factory=InspectionConfig)
     fallback: Dict[str, List[FallbackAction]] = field(default_factory=dict)
@@ -81,7 +80,6 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
     if not isinstance(defaults, dict):
         raise MissionPlanError("Mission 'defaults' must be a mapping")
 
-    cruise_speed = _coerce_float(defaults, "cruise_speed_mps", 1.0)
     inspection_cfg = _parse_inspection(data.get("inspection"))
 
     mode = data.get("mode")
@@ -105,7 +103,6 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
     plan = MissionPlan(
         altitude_m=altitude,
         hover_time_s=hover_time,
-        cruise_speed_mps=cruise_speed,
         steps=steps,
         inspection=inspection_cfg,
         fallback=fallback_cfg,
@@ -114,14 +111,6 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
     )
 
     return plan
-
-
-def _coerce_float(container: Dict[str, object], key: str, default: float) -> float:
-    value = container.get(key, default)
-    try:
-        return float(value)
-    except (TypeError, ValueError) as exc:
-        raise MissionPlanError(f"Mission parameter '{key}' must be a number") from exc
 
 
 def _parse_inspection(value: object) -> InspectionConfig:
@@ -133,6 +122,14 @@ def _parse_inspection(value: object) -> InspectionConfig:
     timeout = _coerce_float(value, "timeout_s", 3.0)
     require_ack = bool(value.get("require_ack", False))
     return InspectionConfig(enable=enable, timeout_s=timeout, require_ack=require_ack)
+
+
+def _coerce_float(container: Dict[str, object], key: str, default: float) -> float:
+    value = container.get(key, default)
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise MissionPlanError(f"Mission parameter '{key}' must be a number") from exc
 
 
 def _parse_fallbacks(value: object) -> Dict[str, List[FallbackAction]]:
@@ -187,14 +184,6 @@ def validate_waypoints_in_bounds(plan: MissionPlan, bounds: EnuBounds) -> None:
             raise MissionPlanError(
                 f"Waypoint #{idx} z={z:.2f} exceeds bounds [{bounds.z.minimum}, {bounds.z.maximum}] (ENU)"
             )
-
-
-def enforce_cruise_speed_limits(plan: MissionPlan, minimum: float, maximum: float) -> None:
-    if plan.cruise_speed_mps < minimum or plan.cruise_speed_mps > maximum:
-        raise MissionPlanError(
-            "Mission cruise_speed_mps %.2f outside allowed range [%.2f, %.2f]"
-            % (plan.cruise_speed_mps, minimum, maximum)
-        )
 
 
 def _resolve_path(base: pathlib.Path, value: str) -> pathlib.Path:

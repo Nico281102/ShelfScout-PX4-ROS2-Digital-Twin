@@ -4,7 +4,6 @@ from .bounds import AxisBounds, EnuBounds, NedBounds, enu_bounds_from_ned
 from .controller import MissionController
 from .plan import (
     FallbackAction,
-    enforce_cruise_speed_limits,
     InspectionConfig,
     MissionPlan,
     MissionPlanError,
@@ -26,5 +25,4 @@ __all__ = [
     "EnuBounds",
     "enu_bounds_from_ned",
     "validate_waypoints_in_bounds",
-    "enforce_cruise_speed_limits",
 ]

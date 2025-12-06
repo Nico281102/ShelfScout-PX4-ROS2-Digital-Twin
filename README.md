@@ -126,7 +126,6 @@ The ROS 2 package is registered through `ros2_ws/src/overrack_mission/setup.py`,
 `ros2 launch overrack_mission mission.sim.launch.py mission_file:=config/mission1.yaml` remains the quickest way to start the stack. That launch file feeds `config/sim/default.yaml` by default (`params_file:=...` overrides), which now exposes:
 - `mission_file`: YAML plan (still overridable via `mission_file:=...`).
 - `world_bounds.{x,y,z}` (meters in NED): rectangular safety limits mirrored into ENU for plan validation; every waypoint outside these numbers causes a load-time failure, and every PX4 setpoint is clamped to the same box after the spawn-offset correction.
-- `cruise_speed_limits`: `[min, max]` guard rails checked against `cruise_speed_mps`.
 - `debug_frames`: when `true`, each waypoint prints one `FrameDebug[...]` line with ENU target, NED target, applied offset, current PX4 pose, and yaw.
 - `return_home_safe_z`: (meters ENU) safe altitude used by the return-home fallback to climb above indoor obstacles before translating home.
 - `sim.disable_link_after_s`: link-loss simulation delay; `<0` disables, `0` triggers immediately, `>0` triggers after N seconds by stopping Offboard heartbeats so PX4 native failsafe takes over.

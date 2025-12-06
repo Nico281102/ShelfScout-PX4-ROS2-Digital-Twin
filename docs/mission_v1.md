@@ -5,7 +5,7 @@ This document defines the version 1 YAML schema consumed by `overrack_mission` f
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
 | `api_version` | int | yes | Must be `1`; used to guard parser changes. |
-| `defaults` | map | yes | Global parameters (`cruise_speed_mps`). Altitude/hover come from the route file. |
+| `defaults` | map | yes | Parametri globali opzionali. Altitude/hover arrivano dal route file. |
 | `route_file` | string | yes | Path to a YAML route loaded by the mission runner (precomputed mode is implicit). |
 | `inspection` | map | optional | Enables the inspection stage, timeout, and optional acknowledgement gating. |
 | `fallback` | map | optional | Trigger → action list map; defaults ensure safe landing if omitted. |
@@ -16,10 +16,10 @@ The `defaults` section seeds the mission planner and inspection behaviour for pa
 
 ```yaml
 defaults:
-  cruise_speed_mps: 1.0    # XY speed setpoint between waypoints
+  # parametri aggiuntivi opzionali (es. override ispezione)
 ```
 
-Cruise speed stays here because routes describe only geometry. Altitude and hover timings come from the referenced route file (`default_altitude_m`, `default_hover_s`, and per-step `hover_s`); edit the route file to change them.
+Altitude e hover arrivano dal route file (`default_altitude_m`, `default_hover_s`, e per-step `hover_s`); modifica il route file per cambiarli.
 
 ## Precomputed Routes (Only Mode)
 Missions implicitly use precomputed routes; no `mode` flag is required (any other value is rejected). Reference an external route file:
@@ -32,8 +32,7 @@ The referenced YAML follows the schema in `planning/precomputed_routes.py`, lett
 ## Example Mission
 ```yaml
 api_version: 1
-defaults:
-  cruise_speed_mps: 1.0
+defaults: {}
 route_file: routes/overrack_default.yaml
 inspection:
   enable: true
@@ -47,7 +46,7 @@ land_on_finish: true
 ## Workspace Bounds and Cruise Speed Limits
 The runtime enforces the indoor volume declared via the ROS parameter `world_bounds.{x,y,z}` (meters in PX4’s NED frame; see `config/sim/default.yaml`). Every ENU waypoint is mirrored into those bounds during parsing; if any `x`, `y`, or `z` lies outside the envelope the mission loader aborts with a descriptive error. At runtime, PX4 setpoints are also clamped to the same box after subtracting the spawn offset measured from `/fmu/out/vehicle_local_position`, ensuring the drone cannot drift through walls even if a waypoint was hand-edited.
 
-Similarly, `cruise_speed_limits: [min, max]` guards the `defaults.cruise_speed_mps` value. Missions that specify a cruise speed outside this range fail fast so operators know when a plan is too aggressive for the current room.
+La cruise speed non viene più validata né usata dal mission runner: la velocità di crociera è gestita dai parametri PX4 (es. MPC_XY_VEL_MAX).
 
 ## Inspection Configuration
 Inspection inserts a dedicated stage after each hover so that `inspection_node.py` can classify the rack slot. The block looks like:

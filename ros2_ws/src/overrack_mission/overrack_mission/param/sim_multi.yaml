@@ -35,7 +35,6 @@ mission_runner:
     world_bounds.x: [-5.0, 5.0]
     world_bounds.y: [-4.0, 4.0]
     world_bounds.z: [-3.0, -0.1]
-    cruise_speed_limits: [0.2, 2.0]
     debug_frames: true
     return_home_safe_z: 2.0
     sim.disable_link_after_s: -1.0

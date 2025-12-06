@@ -3,7 +3,6 @@ api_version: 1
 defaults:
   altitude_m: 1.0
   hover_time_s: 2.0
-  cruise_speed_mps: 1.0
 
 route_file: routes/overrack_default.yaml
 

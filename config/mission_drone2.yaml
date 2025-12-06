@@ -3,7 +3,6 @@ api_version: 1
 defaults:
   altitude_m: 1.2
   hover_time_s: 3.0
-  cruise_speed_mps: 0.6
 
 route_file: routes/drone2_shelf_west.yaml
 

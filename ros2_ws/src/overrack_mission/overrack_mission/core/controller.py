@@ -9,13 +9,7 @@ from typing import Optional, Tuple
 from ..px4io.telemetry import SpawnSyncState
 from .bounds import EnuBounds
 from .fsm import MissionContext, MissionRuntime, MissionStateMachine
-from .plan import (
-    MissionPlan,
-    MissionPlanError,
-    enforce_cruise_speed_limits,
-    load_plan,
-    validate_waypoints_in_bounds,
-)
+from .plan import MissionPlan, MissionPlanError, load_plan, validate_waypoints_in_bounds
 
 
 class MissionController:
@@ -25,7 +19,6 @@ class MissionController:
         mission_path,
         *,
         enu_bounds: Optional[EnuBounds] = None,
-        cruise_speed_limits: Optional[Tuple[float, float]] = None,
         debug_frames: bool = False,
         return_home_safe_z: Optional[float] = None,
     ) -> None:
@@ -37,8 +30,6 @@ class MissionController:
             runtime.logger.error(f"Mission plan error: {exc}")
             raise
 
-        if cruise_speed_limits is not None:
-            enforce_cruise_speed_limits(self._plan, cruise_speed_limits[0], cruise_speed_limits[1])
         if enu_bounds is not None:
             validate_waypoints_in_bounds(self._plan, enu_bounds)
 
