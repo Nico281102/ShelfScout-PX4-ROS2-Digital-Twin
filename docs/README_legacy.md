@@ -19,10 +19,10 @@ overrack-scan/
 │   · Ships official PX4 DDS messages and matching QoS profiles.
 │   · Status: active (`mission_runner`); reference (`px4_ros_com`) not compiled by default.
 ├── config/
-│   · `mission.yaml` defines waypoints, altitude, hover, and thresholds (coverage, drift, temperature).
+│   · `mission.yaml` points to a precomputed `route_file` and sets cruise speed plus thresholds (drift, temperature).
 │   · `px4_sitl.params` is an empty placeholder (loading disabled to avoid regressions).
 │   · Loaded by `overrack_mission` and previously by the legacy mission runner under `src/`.
-│   · Edit here to customise missions and alert thresholds.
+│   · Edit here to customise missions and alert thresholds; routes live under `config/routes/*.yaml`.
 │   · Status: `mission.yaml` active; param file quarantined until validated.
 ├── models/
 │   · Custom Gazebo models: shelves (`overrack_shelf`), markers (`scan_marker`), barcode board.

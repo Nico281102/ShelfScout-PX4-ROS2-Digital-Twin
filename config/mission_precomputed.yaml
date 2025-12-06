@@ -5,7 +5,6 @@ defaults:
   hover_time_s: 2.0
   cruise_speed_mps: 0.25
 
-mode: precomputed
 route_file: routes/overrack_default.yaml
 
 inspection:

@@ -5,55 +5,44 @@ This document defines the version 1 YAML schema consumed by `overrack_mission` f
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
 | `api_version` | int | yes | Must be `1`; used to guard parser changes. |
-| `defaults` | map | yes | Global parameters (altitude, hover time, cruise speed, planner options). |
-| `mode` | string | yes | `explicit`, `precomputed`, or `coverage`. Drives how the path is produced. |
-| `waypoints` | list | conditional | Ordered `[x, y]` pairs used when `mode: explicit`. |
-| `route_file` | string | conditional | Path to a YAML route loaded when `mode: precomputed`. |
-| `area.polygon` | list | conditional | Closed polygon (list of `[x, y]`) for `mode: coverage`. |
+| `defaults` | map | yes | Global parameters (`cruise_speed_mps`). Altitude/hover come from the route file. |
+| `route_file` | string | yes | Path to a YAML route loaded by the mission runner (precomputed mode is implicit). |
 | `inspection` | map | optional | Enables the inspection stage, timeout, and optional acknowledgement gating. |
 | `fallback` | map | optional | Trigger → action list map; defaults ensure safe landing if omitted. |
 | `land_on_finish` | bool | optional | When true the FSM executes `return_home` + `land` at the end. |
 
 ## Defaults Block
-The `defaults` section seeds the mission planner and inspection behaviour:
+The `defaults` section seeds the mission planner and inspection behaviour for parameters that do not live in the route file:
 
 ```yaml
 defaults:
-  altitude_m: 2.5          # commanded Z (positive up) in metres
-  hover_time_s: 2.0        # dwell time at each inspection point
   cruise_speed_mps: 1.0    # XY speed setpoint between waypoints
-  yaw_deg: 0.0             # optional, overrides yaw for explicit and precomputed legs
-  fov_deg: 70              # camera field of view for coverage planning
-  overlap: 0.25            # fractional overlap between coverage lanes
 ```
 
-`altitude_m`, `hover_time_s`, and `cruise_speed_mps` are always read; planners fall back to safe defaults if omitted but declaring them makes intent explicit. Coverage missions additionally honour `fov_deg` and `overlap` when generating serpentine paths.
+Cruise speed stays here because routes describe only geometry. Altitude and hover timings come from the referenced route file (`default_altitude_m`, `default_hover_s`, and per-step `hover_s`); edit the route file to change them.
 
-## Mission Modes
-### Explicit Mode
-Provide `mode: explicit` and a `waypoints` array of `[x, y]` pairs measured in metres in ENU (map frame). Each waypoint inherits `defaults.altitude_m` and can be extended with inline dictionaries if per-waypoint overrides are needed (e.g., `{x: 2.0, y: 1.0, hover_time_s: 4.0}`).
-
-### Precomputed Route Mode
-Set `mode: precomputed` and reference an external route file:
+## Precomputed Routes (Only Mode)
+Missions implicitly use precomputed routes; no `mode` flag is required (any other value is rejected). Reference an external route file:
 
 ```yaml
 route_file: routes/overrack_default.yaml
 ```
-The referenced YAML reuses the same schema used by `planning/precomputed_routes.py`, allowing each leg to specify named actions (e.g., `snapshot`, `align_camera`) that the mission runner publishes as mission-state annotations.
+The referenced YAML follows the schema in `planning/precomputed_routes.py`, letting each leg define `position`, optional `hover_s`, `inspect`, `yaw_deg`, and named actions (e.g., `snapshot`, `align_camera`).
 
-### Coverage Mode
-Coverage missions define an area polygon:
-
+## Example Mission
 ```yaml
-mode: coverage
-area:
-  polygon:
-    - [0.0, 0.0]
-    - [12.0, 0.0]
-    - [12.0, 6.0]
-    - [0.0, 6.0]
+api_version: 1
+defaults:
+  cruise_speed_mps: 1.0
+route_file: routes/overrack_default.yaml
+inspection:
+  enable: true
+  timeout_s: 4.0
+fallback:
+  battery_warning: ["return_home"]
+  battery_critical: ["land"]
+land_on_finish: true
 ```
-`coverage_planner.py` applies the `defaults.fov_deg` and `defaults.overlap` parameters, computes a lawnmower pattern, and produces synthetic waypoints that are fed back into the mission engine. You can still toggle `inspection.enable` and fallback rules exactly as in other modes.
 
 ## Workspace Bounds and Cruise Speed Limits
 The runtime enforces the indoor volume declared via the ROS parameter `world_bounds.{x,y,z}` (meters in PX4’s NED frame; see `config/sim/default.yaml`). Every ENU waypoint is mirrored into those bounds during parsing; if any `x`, `y`, or `z` lies outside the envelope the mission loader aborts with a descriptive error. At runtime, PX4 setpoints are also clamped to the same box after subtracting the spawn offset measured from `/fmu/out/vehicle_local_position`, ensuring the drone cannot drift through walls even if a waypoint was hand-edited.
@@ -99,54 +88,6 @@ fallback:
 
 Actions execute sequentially. If an action is unknown the parser logs a warning and skips it, keeping backward compatibility with older plans. When `land_on_finish: true` is set, the mission runner implicitly appends `["return_home", "land"]` once all waypoints are complete.
 
-## Example (Explicit Mission)
-```yaml
-api_version: 1
-mode: explicit
-defaults:
-  altitude_m: 2.5
-  hover_time_s: 2.0
-  cruise_speed_mps: 1.0
-  fov_deg: 70
-  overlap: 0.2
-waypoints:
-  - [0.0, 0.0]
-  - [2.0, 0.0]
-  - [2.0, 1.0]
-  - [0.0, 1.0]
-inspection:
-  enable: true
-  timeout_s: 4.0
-fallback:
-  battery_warning: ["return_home"]
-  battery_critical: ["land"]
-land_on_finish: true
-```
-
-## Example (Coverage Mission)
-```yaml
-api_version: 1
-mode: coverage
-defaults:
-  altitude_m: 2.8
-  hover_time_s: 1.5
-  cruise_speed_mps: 1.2
-  fov_deg: 68
-  overlap: 0.3
-area:
-  polygon:
-    - [0.0, 0.0]
-    - [10.0, 0.0]
-    - [10.0, 5.0]
-    - [0.0, 5.0]
-inspection:
-  enable: false
-fallback:
-  battery_warning: ["return_home", "land"]
-```
-
-Use these templates as starting points and keep `api_version: 1` up to date whenever the parser evolves to ensure missions fail fast when the schema changes.
-
 ## Mission Runner Internals
 
 The ROS 2 package `overrack_mission` exposes three primary entry points via `colcon`/`setup.py`:
@@ -158,7 +99,7 @@ The ROS 2 package `overrack_mission` exposes three primary entry points via `col
 | `mission_metrics` | `overrack_mission/nodes/metrics_node.py` | Aggregates timestamps, fallback causes, and inspection results into CSV artefacts under `data/metrics/`. |
 
 ### Execution Flow
-1. `mission_runner` parses the YAML (this document) and instantiates the planner according to `mode` (`explicit`, `precomputed`, `coverage`).
+1. `mission_runner` parses the YAML (this document), loads the referenced precomputed route, and injects it into the mission FSM.
 2. `MissionController` translates waypoints into PX4 Offboard setpoints (`/fmu/in/vehicle_local_position_setpoint`, `/fmu/in/trajectory_setpoint`).
 3. `MissionStateMachine` enforces the phase progression (ARM → TAKEOFF → TRANSIT → HOVER/INSPECT → HOLD/RETURN) and calls fallback handlers when triggers fire.
 4. Telemetry helpers (`px4io/telemetry.py`) subscribe to PX4 topics such as `/fmu/out/vehicle_status`, `/fmu/out/vehicle_local_position`, `/fmu/out/battery_status` to gate transitions (arming allowed, offboard ready, battery thresholds, heartbeat timeout).
@@ -189,7 +130,7 @@ Missions that require perfectly steady captures can encode a two-step convention
 | Topic | Direction | Produced by | Notes |
 | --- | --- | --- | --- |
 | `/fmu/in/offboard_control_mode` | publish | `mission_runner` | Enables position control during Offboard flight. |
-| `/fmu/in/trajectory_setpoint` | publish | `mission_runner` | XY setpoints generated from mission waypoints or coverage planner. |
+| `/fmu/in/trajectory_setpoint` | publish | `mission_runner` | XY setpoints generated from the loaded route. |
 | `/fmu/out/vehicle_status` | subscribe | Telemetry helpers | Used to detect `nav_state`, arming state, failsafes. |
 | `/fmu/out/battery_status` | subscribe | Telemetry helpers | Feeds `battery_warning`/`battery_critical` triggers. |
 | `/overrack/inspection` | publish | `inspection_node` | Verdicts (`OK`, `SUSPECT`, `LOW_LIGHT`, custom tags). |

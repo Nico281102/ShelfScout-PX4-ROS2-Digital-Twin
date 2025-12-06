@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import yaml
 
 from .bounds import EnuBounds
-from .planning import Route, RouteStep, lawnmower_path, load_route
+from .planning import Route, load_route
 
 Point2D = Tuple[float, float]
 
@@ -81,47 +81,22 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
     if not isinstance(defaults, dict):
         raise MissionPlanError("Mission 'defaults' must be a mapping")
 
-    altitude = _coerce_float(defaults, "altitude_m", 2.5)
-    hover_time = _coerce_float(defaults, "hover_time_s", 2.0)
     cruise_speed = _coerce_float(defaults, "cruise_speed_mps", 1.0)
-    fov_deg = _coerce_float(defaults, "fov_deg", 70.0)
-    overlap = _coerce_float(defaults, "overlap", 0.25)
-    yaw_default_deg = _coerce_float(defaults, "yaw_deg", 0.0)
-
     inspection_cfg = _parse_inspection(data.get("inspection"))
 
-    mode = data.get("mode", "explicit")
-    steps: List[MissionStep]
-    if mode == "precomputed":
-        route_file = data.get("route_file")
-        if not isinstance(route_file, str) or not route_file:
-            raise MissionPlanError("Mission with mode 'precomputed' must specify 'route_file'")
-        route_path = _resolve_path(path, route_file)
-        route = load_route(route_path)
-        steps = _steps_from_route(route, inspection_cfg)
-        altitude = route.default_altitude_m
-        hover_time = route.default_hover_s
-    elif mode == "coverage":
-        area = data.get("area", {})
-        if not isinstance(area, dict):
-            raise MissionPlanError("Mission 'area' must be provided for coverage mode")
-        polygon = area.get("polygon")
-        if not isinstance(polygon, Sequence) or len(polygon) < 3:
-            raise MissionPlanError("Mission coverage polygon must contain at least 3 vertices")
-        waypoints = lawnmower_path(polygon, altitude, fov_deg, overlap)
-        steps = [
-            MissionStep(position=(wp[0], wp[1], altitude), yaw_deg=yaw_default_deg, inspect=inspection_cfg.enable)
-            for wp in waypoints
-        ]
-    else:
-        raw_waypoints = data.get("waypoints")
-        if not isinstance(raw_waypoints, Sequence) or not raw_waypoints:
-            raise MissionPlanError("Mission must provide 'waypoints' when mode != coverage")
-        waypoints = [(_coerce_float_pair(wp, idx)) for idx, wp in enumerate(raw_waypoints)]
-        steps = [
-            MissionStep(position=(wp[0], wp[1], altitude), yaw_deg=yaw_default_deg, inspect=inspection_cfg.enable)
-            for wp in waypoints
-        ]
+    mode = data.get("mode")
+    if mode not in (None, "precomputed"):
+        raise MissionPlanError("Only precomputed missions are supported; remove 'mode' or set it to 'precomputed'")
+
+    route_file = data.get("route_file")
+    if not isinstance(route_file, str) or not route_file:
+        raise MissionPlanError("Mission must specify 'route_file'")
+
+    route_path = _resolve_path(path, route_file)
+    route = load_route(route_path)
+    steps = _steps_from_route(route, inspection_cfg)
+    altitude = float(route.default_altitude_m)
+    hover_time = float(route.default_hover_s)
 
     fallback_cfg = _parse_fallbacks(data.get("fallback"))
 
@@ -147,15 +122,6 @@ def _coerce_float(container: Dict[str, object], key: str, default: float) -> flo
         return float(value)
     except (TypeError, ValueError) as exc:
         raise MissionPlanError(f"Mission parameter '{key}' must be a number") from exc
-
-
-def _coerce_float_pair(value: Sequence[object], idx: int) -> Point2D:
-    if not isinstance(value, Sequence) or len(value) < 2:
-        raise MissionPlanError(f"Waypoint #{idx} must be a sequence [x, y]")
-    try:
-        return (float(value[0]), float(value[1]))
-    except (TypeError, ValueError) as exc:
-        raise MissionPlanError(f"Waypoint #{idx} contains non numeric values: {value!r}") from exc
 
 
 def _parse_inspection(value: object) -> InspectionConfig:

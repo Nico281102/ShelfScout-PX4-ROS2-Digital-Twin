@@ -5,7 +5,6 @@ defaults:
   hover_time_s: 3.0
   cruise_speed_mps: 0.6
 
-mode: precomputed
 route_file: routes/drone1_shelf_east.yaml
 
 inspection:

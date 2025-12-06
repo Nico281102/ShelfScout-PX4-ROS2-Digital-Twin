@@ -6,21 +6,9 @@ This document summarises the YAML schema consumed by `overrack_mission`.
 api_version: 1
 
 defaults:
-  altitude_m: 2.5
-  hover_time_s: 2.0
   cruise_speed_mps: 1.0
-  fov_deg: 70
-  overlap: 0.25
 
-mode: explicit            # or "coverage"
-waypoints:
-  - [0.0, 0.0]
-  - [2.0, 0.0]
-  - [2.0, 1.0]
-  - [0.0, 1.0]
-# when mode=coverage provide:
-# area:
-#   polygon: [[0,0],[12,0],[12,6],[0,6]]
+route_file: routes/overrack_default.yaml
 
 inspection:
   enable: true
@@ -33,20 +21,12 @@ fallback:
 land_on_finish: false
 ```
 
-* `mode: explicit` uses the `waypoints` list as-is; `mode: coverage` runs the
-  lawnmower planner on the provided `area.polygon` using the camera defaults.
-* `inspection.enable` inserts an `Inspect` stage with the given timeout. The
-  inspection node should publish `OK`, `SUSPECT`, or `LOW_LIGHT` on
-  `overrack/inspection`.
-* `fallback` entries list actions executed in order when a trigger fires. The
-  supported actions are:
+* Missions are always precomputed: `route_file` is required and the `mode` flag is no longer needed.
+* `inspection.enable` inserts an `Inspect` stage with the given timeout. The inspection node should publish `OK`, `SUSPECT`, or `LOW_LIGHT` on `overrack/inspection`.
+* `fallback` entries list actions executed in order when a trigger fires. The supported actions are:
   * `return_home` – fly to the home waypoint.
   * `land` – issue `VEHICLE_CMD_NAV_LAND`.
   * `hold:5s` – hold position for the given duration.
   * `increase_hover:2s` – extend the current/next hover window.
 
-Triggers currently recognised: `battery_warning`, `battery_critical`. Link loss
-is handled by PX4 failsafes when Offboard setpoints stop; any `link_lost`
-entries are ignored. `LOW_LIGHT` is kept for torch control only and no longer
-starts mission fallbacks. Additional triggers may be added later without
-breaking compatibility.
+Triggers currently recognised: `battery_warning`, `battery_critical`. Link loss is handled by PX4 failsafes when Offboard setpoints stop; any `link_lost` entries are ignored. `LOW_LIGHT` is kept for torch control only and no longer starts mission fallbacks. Additional triggers may be added later without breaking compatibility.

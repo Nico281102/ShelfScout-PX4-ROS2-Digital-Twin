@@ -4,21 +4,16 @@ Authoring guidelines for the current single-drone mission YAMLs. The canonical s
 
 ## What We Support Today
 - Single vehicle, ENU mission files loaded via `mission_runner.ros__parameters.mission_file` in `config/sim/default.yaml`.
-- Three modes: `explicit` (inline waypoints), `precomputed` (route file), `coverage` (polygon → planner-generated lanes).
+- Precomputed routes only: each mission references a `route_file`; the `mode` flag is omitted (or must be `precomputed` if present).
 - Inspection is optional and no longer drives fallbacks; it just gates mission advancement when `require_ack` is set.
 - Fallbacks are limited to battery triggers; link-loss is owned by PX4’s native failsafe when setpoints stop.
 
 ## Minimum Skeleton
 ```yaml
 api_version: 1
-mode: explicit
 defaults:
-  altitude_m: 2.5
-  hover_time_s: 2.0
   cruise_speed_mps: 1.0
-waypoints:
-  - [0.0, 0.0]
-  - [2.0, 0.5]
+route_file: routes/overrack_default.yaml
 inspection:
   enable: true
   timeout_s: 4.0
@@ -28,12 +23,12 @@ fallback:
 land_on_finish: true
 ```
 - Keep `api_version: 1` to guard parser changes.
-- Waypoints are ENU; Z and yaw default to `defaults.altitude_m` and `defaults.yaw_deg` if present.
+- Cruise speed is read from `defaults`; altitude/hover timings come from the referenced route (`default_altitude_m`, `default_hover_s`, and per-step `hover_s`).
 - Missions fail fast when a waypoint breaches `world_bounds` from `config/sim/default.yaml` or `cruise_speed_mps` falls outside `cruise_speed_limits`.
 
 ## Field Checklist
-- `mode`: `explicit`, `precomputed`, or `coverage`. Coverage requires `area.polygon`.
-- `defaults`: `altitude_m`, `hover_time_s`, `cruise_speed_mps` are the essentials; `fov_deg` and `overlap` influence coverage planning.
+- `route_file`: required. Points to the YAML consumed by `precomputed_routes.py`.
+- `defaults`: set `cruise_speed_mps`; altitude/hover live in the route file instead.
 - `inspection`: `enable`, `timeout_s`, optional `require_ack`, `image_topic`. `LOW_LIGHT` only toggles the torch via `torch_controller`.
 - `fallback`: map battery triggers to actions (`return_home`, `land`, `hold:<duration>`, `increase_hover:<duration>`, `resume`). Unknown actions are ignored with a warning.
 - `land_on_finish`: appends `return_home` + `land` when the route is complete.
