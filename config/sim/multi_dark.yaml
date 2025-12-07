@@ -1,0 +1,82 @@
+# Esempio di configurazione multi-drone (usare con --params config/sim/multi.yaml)
+run_ros2_system:
+  ros__parameters:
+    world_file: worlds/overrack_indoor.world
+    agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4  # fallback; di norma ogni drone dichiara il proprio agent_cmd
+    # Blob YAML serializzato per evitare limiti rcl su liste di mappe
+    drones_yaml: |
+      - name: drone1
+        namespace: px4_1
+        model: iris_opt_flow
+        spawn: {x: 1.0, y: 1.0, z: 0.3, yaw: 0}
+        mavlink_udp_port: 14541
+        agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
+        px4_params:
+          SIM_BAT_DRAIN: 72.0
+          SIM_BAT_MIN_PCT: 0.03
+          BAT1_N_CELLS: 3
+          BAT1_V_CHARGED: 4.15
+          BAT1_V_EMPTY: 3.55
+          BAT1_CAPACITY: 3500.0
+          BAT_LOW_THR: 0.25
+          BAT_CRIT_THR: 0.15
+          BAT_EMERGEN_THR: 0.08
+          COM_LOW_BAT_ACT: 0
+        px4_namespace: "/px4_1"
+        log_dir: data/logs/drone1
+        mission_runner:
+          mission_file: config/mission_dark_drone1.yaml
+          sim.disable_link_after_s: -1.0
+        inspection_node:
+          image_topic: overrack/iris/front_camera/image_raw
+          low_light_threshold: 255.0
+          suspect_variance: 12.0
+          publish_period_s: 0.5
+        torch_controller:
+          command_topic: overrack/torch_enable
+          startup_on: true
+          min_on_seconds: 10.0
+
+      - name: drone2
+        namespace: px4_2
+        model: iris_opt_flow
+        spawn: {x: -2.5, y: -1.5, z: 0.3, yaw: 1.57}
+        mavlink_udp_port: 14542
+        agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
+        px4_params:
+          SIM_BAT_DRAIN: 54.0
+          SIM_BAT_MIN_PCT: 0.03
+          BAT1_N_CELLS: 3
+          BAT1_V_CHARGED: 4.15
+          BAT1_V_EMPTY: 3.55
+          BAT1_CAPACITY: 3500.0
+          BAT_LOW_THR: 0.25
+          BAT_CRIT_THR: 0.15
+          BAT_EMERGEN_THR: 0.08
+          COM_LOW_BAT_ACT: 0
+        px4_namespace: "/px4_2"
+        log_dir: data/logs/drone2
+        mission_runner:
+          mission_file: config/mission_dark_drone2.yaml
+
+mission_runner:
+  ros__parameters:
+    world_bounds.x: [-5.0, 5.0]
+    world_bounds.y: [-4.0, 4.0]
+    world_bounds.z: [-3.0, -0.1]
+    debug_frames: true
+    return_home_safe_z: 2.0
+    sim.disable_link_after_s: -1.0
+
+inspection_node:
+  ros__parameters:
+    image_topic: overrack/iris/front_camera/image_raw
+    low_light_threshold: 255.0
+    suspect_variance: 12.0
+    publish_period_s: 0.5
+
+torch_controller:
+  ros__parameters:
+    command_topic: overrack/torch_enable
+    startup_on: true
+    min_on_seconds: 10.0

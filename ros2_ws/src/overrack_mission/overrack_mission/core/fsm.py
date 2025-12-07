@@ -243,8 +243,6 @@ class MissionContext:
     def advance_waypoint(self) -> bool:
         if self.current_index < len(self.plan.steps) - 1:
             self.current_index += 1
-            if self.current_index == 1 and not self._bootstrap_complete:
-                self.mark_bootstrap_complete()
             return True
         self.publish_state("MISSION_COMPLETE")
         if not self._bootstrap_complete:
@@ -497,6 +495,9 @@ class ArmingState(State):
             self._arm_sent = True
             return None
         if ctx.telemetry.is_armed():
+            # Switch off bootstrap before the first mission waypoint so all
+            # waypoints use the world-frame spawn offset.
+            ctx.mark_bootstrap_complete()
             return TransitState
         return None
 
