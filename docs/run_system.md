@@ -13,6 +13,16 @@
 - **World and mission precedence**: values in YAML → env defaults (`SSDT_WORLD`, `SSDT_MISSION_FILE`) → baked-in defaults (`worlds/overrack_indoor.world`, `config/mission_precomputed.yaml`).
 - **Path resolution**: relative paths are resolved against `ROOT_DIR` (from `SSDT_ROOT` or repo root). Absolute paths pass through unchanged.
 
+## Param parsing (shared logic)
+- Tutto il parsing del YAML dei parametri passa da `overrack_mission.param_utils` (usato da launch ROS2 e dagli script bash). Niente più frammenti Python embedded.
+- CLI rapida: `PYTHONPATH="$PWD/ros2_ws/src" python3 -m overrack_mission.param_utils --file config/sim/default.yaml defaults|drones --format shell|json` (emette variabili già quotate o JSON).
+- Ordine di precedenza (override):
+  - Parametri globali: i blocchi `mission_runner.ros__parameters`, `inspection_node.ros__parameters`, `torch_controller.ros__parameters` valgono per tutti i droni.
+  - Per-drone: se un elemento in `drones_yaml` contiene `mission_runner`/`inspection_node`/`torch_controller`, quei campi sovrascrivono i globali solo per quel drone.
+  - Missione: `mission_runner.mission_file` per-drone → `mission_file` del drone → argomento `mission_file` passato a `ros2 launch` → default globale `mission_runner.ros__parameters.mission_file` → default `run_ros2_system.ros__parameters.mission_file`.
+  - Mavlink: `mavlink_url` per-drone → `mavlink_udp_port` per-drone (tradotto in `udp://:<port>`) → default `px4_param_setter.ros__parameters.mavlink_url`.
+  - Agent: `agent_cmd` per-drone → `agent_cmd_default` in YAML → env overrides (`AGENT_CMD`, `XRCE_AGENT_CMD`, `MICROXRCE_AGENT_CMD`, `MICRORTPS_AGENT_CMD`) → default `MicroXRCEAgent udp4 -p 8888 -v 6`.
+
 ## Launch Sequence (single drone)
 1. **Source environment**: loads `scripts/.env`, resolves `ROOT_DIR`, `PX4_DIR`, `ROS2_WS`, `LOG_DIR`. Exits early if `PX4_DIR` or the param file are missing.
 2. **Workspace check**: runs `colcon build --packages-select px4_msgs overrack_mission` if `ros2_ws/install/setup.bash` is absent.
