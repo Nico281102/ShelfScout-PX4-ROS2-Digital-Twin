@@ -61,10 +61,12 @@ def _default_mavlink_url(config: dict) -> str:
 
 
 def _mission_runner_defaults(config: dict) -> dict:
-    params = (
-        config.get("mission_runner", {})
-        .get("ros__parameters", {})
-    )
+    params = config.get("mission_runner", {}).get("ros__parameters", {})
+    return params if isinstance(params, dict) else {}
+
+
+def _section_params(config: dict, section: str) -> dict:
+    params = config.get(section, {}).get("ros__parameters", {})
     return params if isinstance(params, dict) else {}
 
 
@@ -162,6 +164,8 @@ def generate_launch_description() -> LaunchDescription:
         model_default = _default_model(config) or "iris_opt_flow"
         mavlink_default = _default_mavlink_url(config) or "udp://:14540"
         mission_runner_defaults = _mission_runner_defaults(config)
+        inspection_defaults = _section_params(config, "inspection_node")
+        torch_defaults = _section_params(config, "torch_controller")
 
         # Multi-drone path (>=1 entry). With one entry we still namespaced to keep symmetry.
         if drones:
@@ -203,9 +207,19 @@ def generate_launch_description() -> LaunchDescription:
                 if mission_value:
                     runner_params["mission_file"] = mission_value
 
-                inspection_params = {"vehicle_ns": ns}
+                inspection_params = dict(inspection_defaults)
+                drone_insp_cfg = drone.get("inspection_node")
+                if isinstance(drone_insp_cfg, dict):
+                    inspection_params.update(drone_insp_cfg)
+                inspection_params["vehicle_ns"] = ns
+
                 metrics_params = {"vehicle_ns": ns}
-                torch_params = {"vehicle_ns": ns}
+                torch_params = dict(torch_defaults)
+                drone_torch_cfg = drone.get("torch_controller")
+                if isinstance(drone_torch_cfg, dict):
+                    torch_params.update(drone_torch_cfg)
+                torch_params["vehicle_ns"] = ns
+
                 param_setter_params = {"vehicle_ns": ns, "mavlink_url": mavlink_url, "px4_namespace": px4_ns}
                 if isinstance(drone.get("px4_params"), dict):
                     param_setter_params["px4_params"] = drone["px4_params"]

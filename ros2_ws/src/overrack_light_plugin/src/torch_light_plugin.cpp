@@ -44,8 +44,11 @@ public:
     rclcpp::ExecutorOptions opt;
     opt.context = context_;
 
+    std::string node_name = "torch_light_plugin";
+    if (model_) node_name += "_" + model_->GetName();
+
     ros_node_ = std::make_shared<rclcpp::Node>(
-        "torch_light_plugin",
+        node_name,
         rclcpp::NodeOptions().context(context_));
 
     RCLCPP_INFO(ros_node_->get_logger(),
@@ -138,11 +141,44 @@ private:
 
   void FindLight()
   {
+    const std::string suffix = "::" + light_name_;
+    const auto matches_model = [&](const std::string &nm) -> bool
+    {
+      if (!model_) return true;
+
+      const std::string base     = model_->GetName();
+      const std::string scoped   = model_->GetScopedName(false);
+      const std::string scoped_w = model_->GetScopedName(true);
+
+      const auto has_prefix = [](const std::string &name, const std::string &pref) -> bool
+      {
+        return !pref.empty() && name.compare(0, pref.size(), pref) == 0;
+      };
+
+      return has_prefix(nm, base + "::") ||
+             has_prefix(nm, scoped + "::") ||
+             has_prefix(nm, scoped_w + "::");
+    };
+
+    const auto try_light = [&](const std::string &name) -> rendering::LightPtr
+    {
+      if (name.empty()) return nullptr;
+      auto candidate = scene_->LightByName(name);
+      if (candidate && !matches_model(candidate->Name()))
+      {
+        RCLCPP_WARN(ros_node_->get_logger(),
+                    "[FindLight] Ignoring light '%s' (belongs to another model)",
+                    candidate->Name().c_str());
+        candidate.reset();
+      }
+      return candidate;
+    };
+
     RCLCPP_INFO(ros_node_->get_logger(),
                 "[FindLight] Searching for light '%s'...", light_name_.c_str());
 
     // 1) nome semplice
-    light_ = scene_->LightByName(light_name_);
+    light_ = try_light(light_name_);
     if (light_)
     {
       RCLCPP_INFO(ros_node_->get_logger(),
@@ -150,19 +186,37 @@ private:
       return;
     }
 
-    // 2) nome scoped
+    // 2) nomi scoped (con e senza world, con link se presente)
     if (model_)
     {
-      std::string scoped = model_->GetScopedName(true) + "::" + light_name_;
-      RCLCPP_INFO(ros_node_->get_logger(),
-                  "[FindLight] Trying scoped name: %s", scoped.c_str());
+      const std::string base     = model_->GetName();
+      const std::string scoped   = model_->GetScopedName(false);
+      const std::string scoped_w = model_->GetScopedName(true);
 
-      light_ = scene_->LightByName(scoped);
-      if (light_)
+      const std::string link_light = "torch_link::" + light_name_;
+
+      const std::string options[] = {
+        scoped_w + "::" + light_name_,
+        scoped   + "::" + light_name_,
+        base     + "::" + light_name_,
+        scoped_w + "::" + link_light,
+        scoped   + "::" + link_light,
+        base     + "::" + link_light
+      };
+
+      for (const auto &opt_name : options)
       {
+        if (opt_name.empty()) continue;
         RCLCPP_INFO(ros_node_->get_logger(),
-                    "[FindLight] Found (scoped): %s", light_->Name().c_str());
-        return;
+                    "[FindLight] Trying scoped name: %s", opt_name.c_str());
+
+        light_ = try_light(opt_name);
+        if (light_)
+        {
+          RCLCPP_INFO(ros_node_->get_logger(),
+                      "[FindLight] Found (scoped): %s", light_->Name().c_str());
+          return;
+        }
       }
     }
 
@@ -171,7 +225,7 @@ private:
                 "[FindLight] Trying brute force search on %u lights...",
                 scene_->LightCount());
 
-    const std::string suffix = "::" + light_name_;
+    rendering::LightPtr fallback_same_name;
     for (unsigned int i = 0; i < scene_->LightCount(); ++i)
     {
       auto cand = scene_->LightByIndex(i);
@@ -180,18 +234,31 @@ private:
       std::string nm = cand->Name();
       RCLCPP_INFO(ros_node_->get_logger(), "[FindLight] Candidate: %s", nm.c_str());
 
-      if (nm.size() >= suffix.size() &&
-          nm.compare(nm.size() - suffix.size(), suffix.size(), suffix) == 0)
+      const bool suffix_match = nm.size() >= suffix.size() &&
+                                nm.compare(nm.size() - suffix.size(), suffix.size(), suffix) == 0;
+      if (suffix_match && matches_model(nm))
       {
         light_ = cand;
         break;
       }
+
+      if (!fallback_same_name && suffix_match) fallback_same_name = cand;
     }
 
     if (!light_)
     {
-      RCLCPP_WARN(ros_node_->get_logger(),
-                  "[FindLight] FAILED to find '%s'", light_name_.c_str());
+      if (fallback_same_name)
+      {
+        RCLCPP_WARN(ros_node_->get_logger(),
+                    "[FindLight] Found light with matching name on a different model (%s); using it as fallback",
+                    fallback_same_name->Name().c_str());
+        light_ = fallback_same_name;
+      }
+      else
+      {
+        RCLCPP_WARN(ros_node_->get_logger(),
+                    "[FindLight] FAILED to find '%s'", light_name_.c_str());
+      }
     }
   }
 

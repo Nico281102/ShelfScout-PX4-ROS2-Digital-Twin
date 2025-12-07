@@ -27,20 +27,15 @@ run_ros2_system:
         mission_runner:
           mission_file: config/mission_dark_drone1.yaml
           sim.disable_link_after_s: -1.0
-        inspection_node:
-          image_topic: overrack/iris/front_camera/image_raw
-          low_light_threshold: 255.0
-          suspect_variance: 12.0
-          publish_period_s: 0.5
         torch_controller:
           command_topic: overrack/torch_enable
-          startup_on: true
+          startup_on: false
           min_on_seconds: 10.0
 
       - name: drone2
         namespace: px4_2
         model: iris_opt_flow
-        spawn: {x: -2.5, y: -1.5, z: 0.3, yaw: 1.57}
+        spawn: {x: -2.5, y: -1.5, z: 0.3, yaw: 0.0}
         mavlink_udp_port: 14542
         agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
         px4_params:
@@ -58,6 +53,10 @@ run_ros2_system:
         log_dir: data/logs/drone2
         mission_runner:
           mission_file: config/mission_dark_drone2.yaml
+        torch_controller:
+          command_topic: overrack/torch_enable
+          startup_on: true
+          min_on_seconds: 10.0
 
 mission_runner:
   ros__parameters:
@@ -71,12 +70,12 @@ mission_runner:
 inspection_node:
   ros__parameters:
     image_topic: overrack/iris/front_camera/image_raw
-    low_light_threshold: 255.0
+    low_light_threshold: 120.0
     suspect_variance: 12.0
     publish_period_s: 0.5
 
 torch_controller:
   ros__parameters:
     command_topic: overrack/torch_enable
-    startup_on: true
+    startup_on: false
     min_on_seconds: 10.0

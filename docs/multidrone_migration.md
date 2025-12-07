@@ -93,6 +93,7 @@ Nota: lanciamo un agent Micro XRCE per ogni drone con porta dedicata; specifica 
 - Architettura agent XRCE: usare un Micro XRCE-DDS Agent per drone su porta dedicata (es. 8888, 8889, ...). `sitl_multiple_run.sh` imposta `px4_instance`, `UXRCE_DDS_KEY` e il namespace ROS (`/px4_1`, `/px4_2`, …); i nodi ROS vanno lanciati nello stesso namespace (`__ns:=/px4_k`) mantenendo i topic PX4 su `/fmu/in|out/*`. Così si evita la collisione tra client_key e si ricevono correttamente i topic di ogni istanza.
 - `px4_param_setter` RuntimeError in shutdown (Context must be initialized...): dopo l’applicazione parametri il crash è benigno; se dà fastidio, eseguirlo solo quando `px4_params` è presente o gestire l’uscita senza `rclpy.shutdown()` forzato.
 - Mismatch MAV_SYS_ID vs `target_system`: `sitl_multiple_run.sh` genera `--mavlink_id $((1+N))` con `N` che parte da 1, quindi le istanze di default hanno SYSID 2,3,... mentre il mission runner inviava `VehicleCommand` a 1,2; PX4 ignorava arming/offboard sul drone “sbagliato”. Fix: Telemetry legge `system_id` da `VehicleStatus` e SetpointPublisher usa quel valore per `target_system`/`source_system` (fallback a `vehicle_id` con warning), così i comandi seguono sempre il SYSID reale.
+- Plugin torcia che si agganciava sempre al primo modello: la ricerca ora filtra le luci per prefisso del modello (includendo i nomi scoped `torch_link::torch_light`) e il nodo ROS è nominato per istanza, così ogni plugin resta legato al proprio `iris_opt_flow_k`. Ricompilare `overrack_light_plugin` con `colcon build --packages-select overrack_light_plugin`.
 
 - **Problemi**
   - `sitl_multiple_run.sh` cercava i template solo sotto `PX4-Autopilot/Tools/.../models/<model>/<model>.sdf.jinja`, ignorando `GAZEBO_MODEL_PATH`: il nostro `models/iris_opt_flow/iris_opt_flow.sdf` (e le aggiunte camera/torcia) veniva ignorato e lo spawn falliva con `TemplateNotFound`. Fix: aggiunta funzione di lookup sul `GAZEBO_MODEL_PATH` e template Jinja nel repo (`models/iris_opt_flow/iris_opt_flow.sdf.jinja`). Snippet della patch:
@@ -121,4 +122,7 @@ Nota: lanciamo un agent Micro XRCE per ogni drone con porta dedicata; specifica 
 - inspection node, serve davvero? ha senso tenerlo?
 - debug framse a che serve 
 - precomputed? teniamo?
-- torch controller non utilizzabile probabilemte con mult_sitl 
+
+
+- La torcia non funziona bene, non so se è colpa della modifica al plugin. (Sto valuntando e sistemando anche come dirlo al file di simulazione)
+- Coordintae del drone sono relative al mondo? Risolto anticipando botstrap ok nel sarming
