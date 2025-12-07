@@ -19,7 +19,7 @@ inspection:
 fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
-land_on_finish: true
+return_home_and_land_on_finish: true
 ```
 - Keep `api_version: 1` to guard parser changes.
 - Cruise speed is read from `defaults`; altitude/hover timings come from the referenced route (`default_altitude_m`, `default_hover_s`, and per-step `hover_s`).
@@ -30,7 +30,7 @@ land_on_finish: true
 - `defaults`: resta per eventuali parametri comuni; altitude/hover restano nel route file.
 - `inspection`: `enable`, `timeout_s`, optional `require_ack`, `image_topic`. `LOW_LIGHT` only toggles the torch via `torch_controller`.
 - `fallback`: map battery triggers to actions (`return_home`, `land`, `hold:<duration>`, `increase_hover:<duration>`, `resume`). Unknown actions are ignored with a warning.
-- `land_on_finish`: appends `return_home` + `land` when the route is complete.
+- `return_home_and_land_on_finish`: appends `return_home` + `land` when the route is complete.
 
 ## Looking Ahead: Multi-Drone
 - The ongoing multi-drone branch will likely add per-vehicle mission sections or multiple mission files with a shared supervisor. Keep mission content vehicle-agnostic where possible so it can be reused.

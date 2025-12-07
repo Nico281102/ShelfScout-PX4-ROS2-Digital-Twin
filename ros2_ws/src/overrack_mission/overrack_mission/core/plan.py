@@ -98,7 +98,9 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
 
     fallback_cfg = _parse_fallbacks(data.get("fallback"))
 
-    land_on_finish = bool(data.get("land_on_finish", False))
+    if "land_on_finish" in data and "return_home_and_land_on_finish" not in data:
+        raise MissionPlanError("Use 'return_home_and_land_on_finish' instead of legacy 'land_on_finish'")
+    land_on_finish = bool(data.get("return_home_and_land_on_finish", False))
 
     plan = MissionPlan(
         altitude_m=altitude,

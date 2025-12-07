@@ -2,7 +2,7 @@
 
 # Mission FSM
 
-Current single-drone state machine as implemented in `core/fsm.py`. Battery triggers start the mission-defined fallback action queue; `land_on_finish:true` appends `return_home` + `land` after the last waypoint.
+Current single-drone state machine as implemented in `core/fsm.py`. Battery triggers start the mission-defined fallback action queue; `return_home_and_land_on_finish:true` appends `return_home` + `land` after the last waypoint.
 
 ```mermaid
 flowchart TD
@@ -43,7 +43,7 @@ flowchart TD
 - **OffboardInit**: sends `VEHICLE_CMD_DO_SET_MODE` once; waits until PX4 reports Offboard active.
 - **Arming**: waits for preflight checks, sends `ARM` once, then advances when PX4 reports armed.
 - **Transit**: drives toward the current waypoint setpoint; when within XY/Z tolerances, schedules hover time and jumps to `Hover` or `Inspect` depending on `step.inspect`.
-- **Hover**: holds position until the hover deadline elapses, then advances to next waypoint or `Hold`. If `land_on_finish:true`, queues `return_home` + `land` when the final waypoint completes.
+- **Hover**: holds position until the hover deadline elapses, then advances to next waypoint or `Hold`. If `return_home_and_land_on_finish:true`, queues `return_home` + `land` when the final waypoint completes.
 - **Inspect**: same setpoint as hover. If `inspection.require_ack=true`, waits for `OK`/`SUSPECT` from `/overrack/inspection` or for `inspection.timeout_s`. Otherwise, advances when hover time expires. `LOW_LIGHT` is ignored by the FSM (handled by torch control only).
 - **Hold**: maintains the last target (or return-home target if set). Used after mission completion or when a `hold:N` fallback action is running.
 - **ReturnHome**: multi-phase climb/translate/descend to home XY/Z (with optional `return_home_safe_z`). Completes in `Hold` at home.
@@ -59,7 +59,7 @@ flowchart TD
   - `hold:<seconds>` → sets a hold timer in `Hold`.
   - `increase_hover:<seconds>` → extends current hover window, no state change.
   - Unknown actions are skipped with a warning.
-- `land_on_finish:true` enqueues `return_home` then `land` when the final waypoint completes (before entering `Hold`).
+- `return_home_and_land_on_finish:true` enqueues `return_home` then `land` when the final waypoint completes (before entering `Hold`).
 
 ## Inspection events and mission actions
 - During `Inspect`, only `OK`/`SUSPECT` satisfy `require_ack`; `LOW_LIGHT` is ignored for FSM decisions.

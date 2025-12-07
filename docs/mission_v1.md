@@ -9,7 +9,7 @@ This document defines the version 1 YAML schema consumed by `overrack_mission` f
 | `route_file` | string | yes | Path to a YAML route loaded by the mission runner (precomputed mode is implicit). |
 | `inspection` | map | optional | Enables the inspection stage, timeout, and optional acknowledgement gating. |
 | `fallback` | map | optional | Trigger → action list map; defaults ensure safe landing if omitted. |
-| `land_on_finish` | bool | optional | When true the FSM executes `return_home` + `land` at the end. |
+| `return_home_and_land_on_finish` | bool | optional | When true the FSM executes `return_home` + `land` at the end. |
 
 ## Defaults Block
 The `defaults` section seeds the mission planner and inspection behaviour for parameters that do not live in the route file:
@@ -40,7 +40,7 @@ inspection:
 fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
-land_on_finish: true
+return_home_and_land_on_finish: true
 ```
 
 ## Workspace Bounds and Cruise Speed Limits
@@ -85,7 +85,7 @@ fallback:
 | `increase_hover:<duration>` | Extend the next hover window by the specified amount. |
 | `resume` | Explicitly continue the mission after any temporary hold (optional). |
 
-Actions execute sequentially. If an action is unknown the parser logs a warning and skips it, keeping backward compatibility with older plans. When `land_on_finish: true` is set, the mission runner implicitly appends `["return_home", "land"]` once all waypoints are complete.
+Actions execute sequentially. If an action is unknown the parser logs a warning and skips it, keeping backward compatibility with older plans. When `return_home_and_land_on_finish: true` is set, the mission runner implicitly appends `["return_home", "land"]` once all waypoints are complete.
 
 ## Mission Runner Internals
 

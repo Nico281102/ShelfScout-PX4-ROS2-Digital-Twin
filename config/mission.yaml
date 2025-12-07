@@ -14,4 +14,4 @@ fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
 
-land_on_finish: false
+return_home_and_land_on_finish: false

@@ -169,10 +169,10 @@ stateDiagram-v2
     TransitState --> InspectState : waypoint reached\n(inspect=true)
 
     HoverState --> TransitState : advance waypoint
-    HoverState --> HoldState : mission complete\n(if land_on_finish →\nqueue return_home → land)
+    HoverState --> HoldState : mission complete\n(if return_home_and_land_on_finish →\nqueue return_home → land)
 
     InspectState --> TransitState : inspection result or timeout
-    InspectState --> HoldState : mission complete\n(if land_on_finish → queue land)
+    InspectState --> HoldState : mission complete\n(if return_home_and_land_on_finish → queue land)
 
     %% -------------------------
     %% Global Fallbacks (evaluated every tick)
@@ -554,6 +554,8 @@ Gazebo Classic cannot make a roof both visually transparent and sunlight-proof v
 ## How AI was used in this project
 - The markdow is almost fully IA written, of course is carefully checked by the developer, but checking is faster than starting writing from zero.
 The integratex visualstudio code chatbot is used, becouse allow the develper to carefully check the diff between a previous version of the document and the newone propose by the IA.
+- Fast warning log detection
+- Fasting prototyping
 
 ## Documentation Index
 | Document | Purpose |
