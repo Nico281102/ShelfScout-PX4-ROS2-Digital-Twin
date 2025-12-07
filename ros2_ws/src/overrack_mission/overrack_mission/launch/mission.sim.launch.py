@@ -4,95 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.actions import PushRosNamespace
-
-
-def _load_yaml(path: Path) -> dict:
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            return yaml.safe_load(handle) or {}
-    except Exception:
-        return {}
-
-
-def _nested(data: dict, keys: list[str]) -> str:
-    ref = data
-    for key in keys:
-        if not isinstance(ref, dict):
-            return ""
-        ref = ref.get(key)
-    return ref if isinstance(ref, str) else ""
-
-
-def _load_drones(config: dict) -> list[dict]:
-    drones = (
-        config.get("run_ros2_system", {})
-        .get("ros__parameters", {})
-        .get("drones_yaml")
-        or ""
-    )
-    # Parse YAML string into list
-    if isinstance(drones, str):
-        try:
-            drones = yaml.safe_load(drones) or []
-        except Exception:
-            drones = []
-    if not isinstance(drones, list):
-        return []
-    return [d for d in drones if isinstance(d, dict)]
-
-
-def _default_mission(config: dict) -> str:
-    return _nested(config, ["mission_runner", "ros__parameters", "mission_file"])
-
-
-def _default_model(config: dict) -> str:
-    return _nested(config, ["mission_runner", "ros__parameters", "gazebo_model_name"])
-
-
-def _default_mavlink_url(config: dict) -> str:
-    return _nested(config, ["px4_param_setter", "ros__parameters", "mavlink_url"])
-
-
-def _mission_runner_defaults(config: dict) -> dict:
-    params = config.get("mission_runner", {}).get("ros__parameters", {})
-    return params if isinstance(params, dict) else {}
-
-
-def _section_params(config: dict, section: str) -> dict:
-    params = config.get(section, {}).get("ros__parameters", {})
-    return params if isinstance(params, dict) else {}
-
-
-SUPPORTED_MULTI_MODELS = {"iris", "plane", "standard_vtol", "rover", "r1_rover", "typhoon_h480", "iris_opt_flow"}
-
-
-def _resolve_gazebo_model_name(drone: dict, idx: int, model_default: str) -> str:
-    """Mirror sitl_multiple_run.sh naming so spawn offset detection matches Gazebo."""
-    explicit = str(drone.get("gazebo_model_name") or "").strip()
-    if explicit:
-        return explicit
-
-    base_model = str(
-        drone.get("model")
-        or model_default
-        or "iris"
-    ).strip()
-    if not base_model:
-        base_model = "iris"
-
-    resolved_model = base_model
-    if base_model not in SUPPORTED_MULTI_MODELS:
-        # sitl_multiple_run.sh maps unsupported models to iris
-        resolved_model = "iris"
-
-    return f"{resolved_model}_{idx}"
+from overrack_mission.param_utils import (
+    default_mavlink_url,
+    default_mission,
+    default_model,
+    drones_from_config,
+    load_config,
+    resolve_gazebo_model_name,
+    section_params,
+)
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -158,14 +84,14 @@ def generate_launch_description() -> LaunchDescription:
     def _launch_setup(context, *args, **kwargs):
         params_path = Path(LaunchConfiguration("params_file").perform(context))
         mission_override = LaunchConfiguration("mission_file").perform(context)
-        config = _load_yaml(params_path)
-        drones = _load_drones(config)
-        mission_default = _default_mission(config)
-        model_default = _default_model(config) or "iris_opt_flow"
-        mavlink_default = _default_mavlink_url(config) or "udp://:14540"
-        mission_runner_defaults = _mission_runner_defaults(config)
-        inspection_defaults = _section_params(config, "inspection_node")
-        torch_defaults = _section_params(config, "torch_controller")
+        config = load_config(params_path)
+        drones = drones_from_config(config)
+        mission_default = default_mission(config)
+        model_default = default_model(config) or "iris_opt_flow"
+        mavlink_default = default_mavlink_url(config) or "udp://:14540"
+        mission_runner_defaults = section_params(config, "mission_runner")
+        inspection_defaults = section_params(config, "inspection_node")
+        torch_defaults = section_params(config, "torch_controller")
 
         # Multi-drone path (>=1 entry). With one entry we still namespaced to keep symmetry.
         if drones:
@@ -189,7 +115,7 @@ def generate_launch_description() -> LaunchDescription:
                     or mission_default
                 )
                 mission_value = str(mission_file) if mission_file else ""
-                gazebo_model = _resolve_gazebo_model_name(drone, idx, model_default)
+                gazebo_model = resolve_gazebo_model_name(drone, idx, model_default)
                 mavlink_url = str(
                     drone.get("mavlink_url")
                     or (f"udp://:{int(drone.get('mavlink_udp_port'))}" if drone.get("mavlink_udp_port") else "")

@@ -21,6 +21,12 @@ if [[ -z "${PX4_DIR:-}" ]]; then
   exit 1
 fi
 
+# Shared Python utilities to parse YAML defaults/drones.
+PARAM_UTILS_PYTHONPATH="$ROOT_DIR/ros2_ws/src:${PYTHONPATH:-}"
+param_utils() {
+  PYTHONPATH="$PARAM_UTILS_PYTHONPATH" python3 -m overrack_mission.param_utils "$@"
+}
+
 resolve_with_root() {
   local candidate="$1"
   if declare -F ssdt_resolve_path >/dev/null 2>&1; then
@@ -39,135 +45,6 @@ resolve_with_root() {
   else
     printf '%s/%s\n' "$ROOT_DIR" "$candidate"
   fi
-}
-
-# Read YAML defaults (mission/world/agent) via python+PyYAML to keep parsing logic simple.
-load_yaml_defaults() {
-  local yaml_file="$1"
-  local -a defaults
-  if [[ ! -f "$yaml_file" ]]; then
-    return
-  fi
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "[run_ros2_system] python3 not found; skipping YAML defaults" >&2
-    return
-  fi
-  if mapfile -t defaults < <(python3 - "$yaml_file" <<'PY'
-import sys
-try:
-    import yaml
-except ImportError:
-    sys.stderr.write("[run_ros2_system] PyYAML is required to parse YAML defaults.\n")
-    sys.exit(1)
-from pathlib import Path
-path = Path(sys.argv[1])
-with path.open('r', encoding='utf-8') as handle:
-    data = yaml.safe_load(handle) or {}
-def nested(container, keys):
-    for key in keys:
-        if not isinstance(container, dict):
-            return ""
-        container = container.get(key)
-        if container is None:
-            return ""
-    return container if isinstance(container, str) else ""
-mission = (
-    nested(data, ["run_ros2_system", "ros__parameters", "mission_file"])
-    or nested(data, ["mission_runner", "ros__parameters", "mission_file"])
-    or ""
-)
-world = nested(data, ["run_ros2_system", "ros__parameters", "world_file"]) or ""
-agent = nested(data, ["run_ros2_system", "ros__parameters", "agent_cmd"]) or ""
-agent_default = nested(data, ["run_ros2_system", "ros__parameters", "agent_cmd_default"]) or agent
-drones_yaml = nested(data, ["run_ros2_system", "ros__parameters", "drones_yaml"]) or ""
-dr = []
-if drones_yaml:
-    try:
-        import yaml as _yaml  # type: ignore
-        dr = _yaml.safe_load(drones_yaml) or []
-    except Exception:
-        dr = []
-if not isinstance(dr, list):
-    dr = []
-print(mission)
-print(world)
-print(agent_default)
-print(len(dr))
-PY
-); then
-    YAML_MISSION_DEFAULT="${defaults[0]:-}"
-    YAML_WORLD_DEFAULT="${defaults[1]:-}"
-    YAML_AGENT_DEFAULT="${defaults[2]:-}"
-    YAML_DRONES_COUNT="${defaults[3]:-0}"
-  else
-    echo "[run_ros2_system] Unable to parse YAML defaults from $yaml_file" >&2
-  fi
-}
-
-# Export drone definitions from the params file as shell assignments.
-load_drones_env() {
-  local yaml_file="$1"
-  if [[ ! -f "$yaml_file" ]]; then
-    return
-  fi
-  if ! command -v python3 >/dev/null 2>&1; then
-    return
-  fi
-  python3 - "$yaml_file" <<'PY'
-import json
-import shlex
-import sys
-from pathlib import Path
-try:
-    import yaml
-except ImportError:
-    sys.exit(0)
-
-path = Path(sys.argv[1])
-if not path.is_file():
-    sys.exit(0)
-data = yaml.safe_load(path.read_text()) or {}
-ros_params = ((data.get("run_ros2_system") or {}).get("ros__parameters") or {})
-drones_yaml = ros_params.get("drones_yaml") or ""
-if not drones_yaml:
-    sys.exit(0)
-try:
-    drones = yaml.safe_load(drones_yaml) or []
-except Exception:
-    drones = []
-if not isinstance(drones, list):
-    sys.exit(0)
-print(f"DRONE_COUNT={len(drones)}")
-for idx, drone in enumerate(drones):
-    name = drone.get("name") or f"drone{idx+1}"
-    ns = (drone.get("namespace") or name).lstrip("/")
-    model = drone.get("model") or drone.get("gazebo_model_name") or "iris_opt_flow"
-    spawn = drone.get("spawn") or {}
-    mission = drone.get("mission_file") or ""
-    mav_sys_id = drone.get("mav_sys_id") or ""
-    mavlink_port = drone.get("mavlink_udp_port") or ""
-    agent_cmd = drone.get("agent_cmd") or ""
-    log_dir = drone.get("log_dir") or ""
-    px4_params = drone.get("px4_params") or {}
-    def emit(key, value):
-        print(f'DRONE_{key}[{idx}]={shlex.quote("" if value is None else str(value))}')
-    emit("NAME", name)
-    emit("NS", ns)
-    emit("MODEL", model)
-    emit("SPAWN_X", spawn.get("x", 0.0))
-    emit("SPAWN_Y", spawn.get("y", 0.0))
-    emit("SPAWN_Z", spawn.get("z", 0.0))
-    emit("SPAWN_YAW", spawn.get("yaw", 0.0))
-    emit("MISSION", mission)
-    emit("MAV_SYS_ID", mav_sys_id)
-    emit("MAVLINK_PORT", mavlink_port)
-    emit("AGENT_CMD", agent_cmd)
-    emit("LOG_DIR", log_dir)
-    if isinstance(px4_params, dict):
-        emit("PX4_PARAMS", json.dumps(px4_params))
-    else:
-        emit("PX4_PARAMS", "{}")
-PY
 }
 
 ROS2_WS="$(resolve_with_root "${SSDT_ROS_WS:-${SHELFSCOUT_ROS_WS:-$ROOT_DIR/ros2_ws}}")"
@@ -237,8 +114,16 @@ if [[ ! -f "$PARAM_FILE_PATH" ]]; then
   exit 1
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[run_ros2_system] python3 is required to parse params" >&2
+  exit 1
+fi
+
 # Allow the YAML file to drive mission/world/agent defaults.
-load_yaml_defaults "$PARAM_FILE_PATH"
+if ! eval "$(param_utils --file "$PARAM_FILE_PATH" defaults --format shell)"; then
+  echo "[run_ros2_system] Unable to read defaults from $PARAM_FILE_PATH" >&2
+  exit 1
+fi
 if [[ -n "$YAML_WORLD_DEFAULT" ]]; then
   WORLD_PATH="$(resolve_with_root "$YAML_WORLD_DEFAULT")"
 else
@@ -267,7 +152,7 @@ if [[ "${YAML_DRONES_COUNT:-0}" -gt 0 ]]; then
 fi
 
 # Populate drone arrays from drones_yaml (if any).
-eval "$(load_drones_env "$PARAM_FILE_PATH")" || true
+eval "$(param_utils --file "$PARAM_FILE_PATH" drones --format shell)" || true
 if (( DRONE_COUNT > 0 )); then
   echo "[run_ros2_system] Drones loaded:"
   for idx in $(seq 0 $((DRONE_COUNT - 1))); do

@@ -21,6 +21,24 @@ if [[ -z "${PX4_DIR:-}" ]]; then
   echo "[launch_px4_gazebo_multi] PX4_DIR is not set. Source scripts/.env first." >&2
   exit 1
 fi
+resolve_with_root() {
+  local candidate="$1"
+  if [[ -z "$candidate" ]]; then
+    printf '%s\n' "$ROOT_DIR"
+    return
+  fi
+  if [[ "$candidate" = /* ]]; then
+    printf '%s\n' "$candidate"
+  else
+    printf '%s/%s\n' "$ROOT_DIR" "$candidate"
+  fi
+}
+
+# Shared Python utilities to parse YAML defaults/drones.
+PARAM_UTILS_PYTHONPATH="$ROOT_DIR/ros2_ws/src:${PYTHONPATH:-}"
+param_utils() {
+  PYTHONPATH="$PARAM_UTILS_PYTHONPATH" python3 -m overrack_mission.param_utils "$@"
+}
 
 # -----------------------------------------------------------------------------
 # CLI parsing
@@ -51,59 +69,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-load_drones_env() {
-  local yaml_file="$1"
-  if [[ -z "$yaml_file" || ! -f "$yaml_file" ]]; then
-    return 1
-  fi
-  python3 - "$yaml_file" <<'PY'
-import json
-import shlex
-import sys
-from pathlib import Path
-try:
-    import yaml
-except ImportError:
-    sys.exit(1)
-path = Path(sys.argv[1])
-data = yaml.safe_load(path.read_text()) or {}
-ros_params = ((data.get("run_ros2_system") or {}).get("ros__parameters") or {})
-drones_yaml = ros_params.get("drones_yaml") or ""
-world = ros_params.get("world_file") or ""
-if not drones_yaml:
-    sys.exit(1)
-try:
-    drones = yaml.safe_load(drones_yaml) or []
-except Exception:
-    sys.exit(1)
-if not isinstance(drones, list):
-    sys.exit(1)
-print(f"DRONE_COUNT={len(drones)}")
-if world:
-    print(f"WORLD_FILE={shlex.quote(world)}")
-for idx, drone in enumerate(drones):
-    name = drone.get("name") or f"drone{idx+1}"
-    ns = (drone.get("namespace") or name).lstrip("/")
-    model = drone.get("model") or drone.get("gazebo_model_name") or "iris_opt_flow"
-    spawn = drone.get("spawn") or {}
-    mission = drone.get("mission_file") or ""
-    log_dir = drone.get("log_dir") or ""
-    def emit(key, value):
-        print(f'DRONE_{key}[{idx}]={shlex.quote("" if value is None else str(value))}')
-    emit("NAME", name)
-    emit("NS", ns)
-    emit("MODEL", model)
-    emit("SPAWN_X", spawn.get("x", 0.0))
-    emit("SPAWN_Y", spawn.get("y", 0.0))
-    emit("SPAWN_Z", spawn.get("z", 0.0))
-    emit("SPAWN_YAW", spawn.get("yaw", 0.0))
-    emit("MISSION", mission)
-    emit("LOG_DIR", log_dir)
-PY
-}
-
 # Load drones from params file
-eval "$(load_drones_env "$PARAM_FILE")" || true
+eval "$(param_utils --file "$PARAM_FILE" defaults --format shell)" || true
+eval "$(param_utils --file "$PARAM_FILE" drones --format shell)" || true
 
 if [[ -z "${DRONE_COUNT:-}" || ! "${DRONE_COUNT}" =~ ^[0-9]+$ || "${DRONE_COUNT}" -le 0 ]]; then
   echo "[launch_px4_gazebo_multi] DRONE_COUNT missing or invalid; check --params file" >&2
@@ -111,8 +79,8 @@ if [[ -z "${DRONE_COUNT:-}" || ! "${DRONE_COUNT}" =~ ^[0-9]+$ || "${DRONE_COUNT}
 fi
 
 if [[ -z "$WORLD_PATH" ]]; then
-  if [[ -n "${WORLD_FILE:-}" ]]; then
-    WORLD_PATH="$ROOT_DIR/${WORLD_FILE}"
+  if [[ -n "${YAML_WORLD_DEFAULT:-}" ]]; then
+    WORLD_PATH="$(resolve_with_root "$YAML_WORLD_DEFAULT")"
   else
     WORLD_PATH="$ROOT_DIR/worlds/overrack_indoor.world"
   fi
