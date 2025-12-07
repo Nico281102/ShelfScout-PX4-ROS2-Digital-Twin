@@ -1,0 +1,39 @@
+route:
+  name: drone1_shelf_east
+  default_altitude_m: 1.2
+  default_hover_s: 3.0
+
+  steps:
+    - name: spawn_align
+      position: [-4.0, 1.5, 1.2]
+      hover_s: 1.5
+      inspect: false
+
+    - name: west_top
+      position: [-4.0, 3.4, 1.2]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: west_mid_upper
+      position: [-4.0, 1.5, 1.2]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: west_mid_lower
+      position: [-4.0, -1.5, 1.2]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: west_bottom
+      position: [-4.0, -3.4, 1.2]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: exit_corridor
+      position: [-4.0, -0.5, 1.2]
+      hover_s: 2.0
+      inspect: false
