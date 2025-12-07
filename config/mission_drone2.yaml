@@ -4,7 +4,7 @@ defaults:
   altitude_m: 1.2
   hover_time_s: 3.0
 
-route_file: routes/drone2_shelf_west.yaml
+route_file: routes/drone2_shelf_south.yaml
 
 inspection:
   enable: true
