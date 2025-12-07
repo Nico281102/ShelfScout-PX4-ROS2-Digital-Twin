@@ -27,7 +27,7 @@ Missions implicitly use precomputed routes; no `mode` flag is required (any othe
 ```yaml
 route_file: routes/overrack_default.yaml
 ```
-The referenced YAML follows the schema in `planning/precomputed_routes.py`, letting each leg define `position`, optional `hover_s`, `inspect`, `yaw_deg`, and named actions (e.g., `snapshot`, `align_camera`).
+The referenced YAML follows the schema in `planning/precomputed_routes.py`, letting each leg define `position`, optional `hover_s`, `inspect`, `yaw_deg`, and named actions (e.g., `snapshot`, `align_camera`). Route-level actions are non-blocking tags; flight commands such as `land` are not supported here (use fallbacks or `return_home_and_land_on_finish`).
 
 ## Example Mission
 ```yaml

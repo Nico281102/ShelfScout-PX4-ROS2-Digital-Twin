@@ -70,6 +70,11 @@ def load_route(path: Path) -> Route:
             hover_s = float(hover_s)
         inspect = bool(step_raw.get("inspect", False))
         action = step_raw.get("action")
+        if isinstance(action, str) and action.strip().lower() == "land":
+            raise RouteFormatError(
+                f"Route step '{step_name}' uses unsupported action 'land'; "
+                "use fallback actions or return_home_and_land_on_finish instead."
+            )
         steps.append(RouteStep(step_name, position, yaw_deg, hover_s, inspect, action))
 
     return Route(
