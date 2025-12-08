@@ -15,7 +15,7 @@
   <world name="overrack_indoor">
 
     <!-- Enable Gazebo ROS API plugin for ROS2 services -->
-    <plugin name="gazebo_ros_api_plugin" filename="libgazebo_ros_api_plugin.so"/> <!-- ROS2 integration , to commit-->
+
     <!-- Publishes /gazebo/model_states and /gazebo/link_states to ROS2 -->
     <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
       <ros>
@@ -23,11 +23,7 @@
       </ros>
     </plugin>
     <!-- Provides /gazebo/get_model_state and /gazebo/get_entity_state services -->
-    <plugin name="gazebo_ros_factory" filename="libgazebo_ros_factory.so">
-      <ros>
-        <namespace>/gazebo</namespace>
-      </ros>
-    </plugin>
+
 
     <model name="origin_marker">
   <static>true</static>
@@ -66,7 +62,7 @@
 <gui fullscreen="0">
   <camera name="overrack_default">
     <!-- Posizione iniziale della camera nel mondo -->
-    <pose>-4 -4 6.0 0 0.75 0.6</pose>
+    <pose>-6 -6 8.0 0 0.75 0.7</pose>
 
     <!-- Camera in modalità FPS -->
     <view_controller>fps</view_controller>
@@ -114,9 +110,9 @@
           </geometry>
           <material>
             <script>
-              <uri>file://../models/materials/scripts/custom.material</uri>
-              <name>Custom/AlphaBlend</name>
+                <name>Gazebo/Gray</name>
             </script>
+            <transparency>0.7</transparency>
             <ambient>1 1 1 0.1</ambient>
             <diffuse>1 1 1 0.1</diffuse>
           </material>

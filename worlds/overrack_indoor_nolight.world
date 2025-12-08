@@ -14,16 +14,9 @@
 <sdf version="1.6">
   <world name="overrack_indoor">
 
-    <!-- Enable Gazebo ROS API plugin for ROS2 services -->
-    <plugin name="gazebo_ros_api_plugin" filename="libgazebo_ros_api_plugin.so"/> <!-- ROS2 integration , to commit-->
+
     <!-- Publishes /gazebo/model_states and /gazebo/link_states to ROS2 -->
     <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
-      <ros>
-        <namespace>/gazebo</namespace>
-      </ros>
-    </plugin>
-    <!-- Provides /gazebo/get_model_state and /gazebo/get_entity_state services -->
-    <plugin name="gazebo_ros_factory" filename="libgazebo_ros_factory.so">
       <ros>
         <namespace>/gazebo</namespace>
       </ros>
@@ -66,13 +59,13 @@
 <gui fullscreen="0">
   <camera name="overrack_default">
     <!-- Posizione iniziale della camera nel mondo -->
-    <pose>0 0 1.5 0 0 0</pose>
+    <pose>-6 -6 8.0 0 0.75 0.7</pose>
 
     <!-- Camera in modalità FPS -->
-    <view_controller>orbit</view_controller>
+    <view_controller>fps</view_controller>
 
     <!-- Segui il drone -->
-    <track_visual>iris_opt_flow::base_link</track_visual>
+   <!--  <track_visual>iris_opt_flow::base_link</track_visual>-->
   </camera>
 </gui>
 
@@ -84,7 +77,10 @@
       <real_time_factor>1.0</real_time_factor>
     </physics>
 
-    <!-- Sun and ground -->
+    <!-- Sun and ground , the sun is disabled becouse otherwise it's light would interfere with indoor lighting, biasing the "sensor"
+    <include>
+      <uri>model://sun</uri>
+    </include>  --> 
     <include>
       <uri>model://ground_plane</uri>
     </include>
@@ -104,28 +100,20 @@
           </geometry>
         </collision>
         <visual name="vis">
-        <geometry>
-          <box>
-            <size>12 10 0.1</size>
-          </box>
-        </geometry>
-
-        <material>
-          <script>
-            <uri>file://../models/materials/scripts/custom.material</uri>
-
-            <name>Custom/AlphaBlend</name>
-          </script>
-
-          <!-- Colore molto chiaro, quasi invisibile -->
-          <ambient>1 1 1 0.1</ambient>
-          <diffuse>1 1 1 0.1</diffuse>
-
-          <!-- Trasparenza massima -->
-          <transparency>0.95</transparency>
-        </material>
-      </visual>
-
+          <geometry>
+            <box>
+              <size>12 10 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Gray</name>
+            </script>
+            <transparency>0.7</transparency>
+            <ambient>1 1 1 0.1</ambient>
+            <diffuse>1 1 1 0.1</diffuse>
+          </material>
+        </visual>
       </link>
 
       <!-- Four walls: 12m x 10m room, 3m tall -->
@@ -331,8 +319,7 @@
 <!-- usa: <wp_marker name="wp_spawn_alt" x="0.0" y="0.0" z="1.0" yaw="0.0"/> -->
 <!-- (SDF non supporta macro: duplico il blocco per ogni waypoint) -->
 <!-- ======================== -->
-<!--      CEILING NEON LIGHTS -->
-<!-- ======================== -->
+
 
 <!-- spawn (floor) -->
 <model name="wp_spawn_floor">
