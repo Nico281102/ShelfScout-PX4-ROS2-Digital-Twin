@@ -1,0 +1,292 @@
+#!/bin/bash
+# run multiple instances of the 'px4' binary, with the gazebo SITL simulation
+# It assumes px4 is already built, with 'make px4_sitl_default sitl_gazebo-classic'
+
+# The simulator is expected to send to TCP port 4560+i for i in [0, N-1]
+# For example gazebo can be run like this:
+#./Tools/simulation/gazebo-classic/sitl_multiple_run.sh -n 10 -m iris
+
+SUPPORTED_MODELS=("iris" "plane" "standard_vtol" "rover" "r1_rover" "typhoon_h480" "iris_opt_flow")
+
+function cleanup() {
+	pkill -x px4
+	pkill gzclient
+	pkill gzserver
+}
+
+strip_label_suffix() {
+	local name="$1"
+	local suffix="$2"
+
+	if [[ -n "$suffix" && "$name" == *"$suffix" ]]; then
+		printf '%s\n' "${name:0:${#name}-${#suffix}}"
+	else
+		printf '%s\n' "$name"
+	fi
+}
+
+resolve_model_family() {
+	local model="$1"
+	local best=""
+
+	for candidate in "${SUPPORTED_MODELS[@]}"; do
+		if [[ "$model" == "$candidate" || "$model" == "${candidate}"_* || "$model" == "${candidate}"-* ]]; then
+			if [[ ${#candidate} -gt ${#best} ]]; then
+				best="$candidate"
+			fi
+		fi
+	done
+
+	[[ -n "$best" ]] || return 1
+	printf '%s\n' "$best"
+}
+
+resolve_px4_sim_model() {
+	local model="$1"
+	local base_model
+	local family_model
+
+	base_model="$(strip_label_suffix "$model" "${LABEL:-}")"
+	family_model="$(resolve_model_family "$base_model" 2>/dev/null)" || family_model="$base_model"
+
+	case "$family_model" in
+		iris_opt_flow)
+			printf 'gazebo-classic_iris\n'
+			;;
+		*)
+			printf 'gazebo-classic_%s\n' "$family_model"
+			;;
+	esac
+}
+
+set_px4_sim_model() {
+	local model="$1"
+	local resolved
+
+	resolved="$(resolve_px4_sim_model "$model")"
+
+	if [[ "${PX4_SIM_MODEL:-}" != "$resolved" ]]; then
+		if [[ "$resolved" == "gazebo-classic_iris" && "$model" != "iris" ]]; then
+			echo "PX4_SIM_MODEL mapped to ${resolved} for derived model ${model}"
+		fi
+		export PX4_SIM_MODEL="$resolved"
+	fi
+}
+
+find_model_template() {
+	local model="$1"
+	local label_suffix="${LABEL:-}"
+	local search_model
+	local family_model
+	local template_path=""
+	local -a search_roots=()
+	declare -A seen_roots=()
+
+	search_model="$(strip_label_suffix "$model" "$label_suffix")"
+	family_model="$(resolve_model_family "$search_model" 2>/dev/null)" || family_model=""
+
+	if [[ -n "${GAZEBO_MODEL_PATH:-}" ]]; then
+		IFS=':' read -r -a model_paths <<< "${GAZEBO_MODEL_PATH}"
+		for path in "${model_paths[@]}"; do
+			if [[ -n "$path" && -z "${seen_roots[$path]:-}" ]]; then
+				search_roots+=("$path")
+				seen_roots["$path"]=1
+			fi
+		done
+	fi
+
+	local px4_models="${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models"
+	if [[ -z "${seen_roots[$px4_models]:-}" ]]; then
+		search_roots+=("$px4_models")
+	fi
+
+	local -a candidate_models=("$search_model")
+	if [[ -n "$family_model" && "$family_model" != "$search_model" ]]; then
+		candidate_models+=("$family_model")
+	fi
+
+	for candidate_model in "${candidate_models[@]}"; do
+		for path in "${search_roots[@]}"; do
+			for candidate in \
+				"${path}/${candidate_model}/${candidate_model}.sdf.jinja" \
+				"${path}/${candidate_model}.sdf.jinja"
+			do
+				if [[ -f "$candidate" ]]; then
+					echo "$candidate"
+					return 0
+				fi
+			done
+		done
+	done
+
+	echo "ERROR: Unable to find template for model ${search_model}" >&2
+	if [[ -n "$family_model" && "$family_model" != "$search_model" ]]; then
+		echo "       (also tried fallback family: ${family_model})" >&2
+	fi
+	echo "Searched model roots:" >&2
+	for path in "${search_roots[@]}"; do
+		echo "  - ${path}" >&2
+	done
+
+	return 1
+}
+
+function spawn_model() {
+	local model_with_label="$1"
+	local base_model
+	local family_model
+	local template_path
+
+	N=$2 #Instance Number
+	X=$3
+	Y=$4
+	Z=$5
+	YAW=$6
+	X=${X:=0.0}
+	Y=${Y:=$((3*${N}))}
+	Z=${Z:=0.83}
+	YAW=${YAW:=0.0}
+
+	base_model="$(strip_label_suffix "$model_with_label" "${LABEL:-}")"
+	family_model="$(resolve_model_family "$base_model" 2>/dev/null)"
+
+	if [[ -z "$family_model" ]]; then
+		echo "ERROR: Currently only vehicle model ${base_model} is not supported!"
+		echo "       Supported Models: [${SUPPORTED_MODELS[@]}]"
+		trap "cleanup" SIGINT SIGTERM EXIT
+		exit 1
+	fi
+
+	set_px4_sim_model "$base_model"
+
+	working_dir="$build_path/rootfs/$n"
+	[ ! -d "$working_dir" ] && mkdir -p "$working_dir"
+
+	pushd "$working_dir" &>/dev/null
+	echo "starting instance $N in $(pwd)"
+	$build_path/bin/px4 -i $N -d "$build_path/etc" >out.log 2>err.log &
+
+	template_path="$(find_model_template "$base_model")"
+	if [[ -z "$template_path" ]]; then
+		echo "ERROR: Unable to find template for model $base_model (GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH)"
+		trap "cleanup" SIGINT SIGTERM EXIT
+		exit 1
+	fi
+	template_dir="$(dirname "$template_path")"
+
+	set --
+	set -- ${@} ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic/scripts/jinja_gen.py
+	set -- ${@} "${template_path}"
+	set -- ${@} "${template_dir}"
+	set -- ${@} --mavlink_tcp_port $((4560+${N}))
+	set -- ${@} --mavlink_udp_port $((14560+${N}))
+	set -- ${@} --mavlink_id $((1+${N}))
+	set -- ${@} --gst_udp_port $((5600+${N}))
+	set -- ${@} --video_uri $((5600+${N}))
+	set -- ${@} --mavlink_cam_udp_port $((14530+${N}))
+	set -- ${@} --output-file /tmp/${model_with_label}_${N}.sdf
+
+	python3 ${@}
+
+	echo "Spawning ${model_with_label}_${N} at ${X} ${Y} ${Z} yaw=${YAW}"
+
+	gz model --spawn-file=/tmp/${model_with_label}_${N}.sdf --model-name=${model_with_label}_${N} -x ${X} -y ${Y} -z ${Z} -Y ${YAW}
+
+	popd &>/dev/null
+
+}
+
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]
+then
+	echo "Usage: $0 [-n <num_vehicles>] [-m <vehicle_model>] [-w <world>] [-s <script>]"
+	echo "-s flag is used to script spawning vehicles e.g. $0 -s iris:3,plane:2"
+	exit 1
+fi
+
+while getopts n:m:w:s:t:l: option
+do
+	case "${option}"
+	in
+		n) NUM_VEHICLES=${OPTARG};;
+		m) VEHICLE_MODEL=${OPTARG};;
+		w) WORLD=${OPTARG};;
+		s) SCRIPT=${OPTARG};;
+		t) TARGET=${OPTARG};;
+		l) LABEL=_${OPTARG};;
+	esac
+done
+
+num_vehicles=${NUM_VEHICLES:=3}
+world=${WORLD:=empty}
+target=${TARGET:=px4_sitl_default}
+vehicle_model=${VEHICLE_MODEL:="iris"}
+set_px4_sim_model "$vehicle_model"
+
+echo ${SCRIPT}
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+src_path="$SCRIPT_DIR/../../.."
+
+build_path=${src_path}/build/${target}
+mavlink_udp_port=14560
+mavlink_tcp_port=4560
+
+echo "killing running instances"
+pkill -x px4 || true
+
+sleep 1
+
+source ${src_path}/Tools/simulation/gazebo-classic/setup_gazebo.bash ${src_path} ${src_path}/build/${target}
+
+# To use gazebo_ros ROS2 plugins
+if [[ -n "$ROS_VERSION" ]] && [ "$ROS_VERSION" == "2" ]; then
+	ros_args="-s libgazebo_ros_init.so -s libgazebo_ros_factory.so"
+else
+	ros_args=""
+fi
+
+echo "Starting gazebo"
+gzserver ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic/worlds/${world}.world --verbose $ros_args &
+sleep 5
+
+n=0
+if [ -z ${SCRIPT} ]; then
+	if [ $num_vehicles -gt 255 ]
+	then
+		echo "Tried spawning $num_vehicles vehicles. The maximum number of supported vehicles is 255"
+		exit 1
+	fi
+
+	while [ $n -lt $num_vehicles ]; do
+		spawn_model ${vehicle_model} $(($n + 1))
+		n=$(($n + 1))
+	done
+else
+	IFS=,
+	for target in ${SCRIPT}; do
+		target="$(echo "$target" | tr -d ' ')" #Remove spaces
+		target_vehicle=$(echo $target | cut -f1 -d:)
+		target_number=$(echo $target | cut -f2 -d:)
+		target_x=$(echo $target | cut -f3 -d:)
+		target_y=$(echo $target | cut -f4 -d:)
+		target_z=$(echo $target | cut -f5 -d:)
+		target_yaw=$(echo $target | cut -f6 -d:)
+
+		if [ $n -gt 255 ]
+		then
+			echo "Tried spawning $n vehicles. The maximum number of supported vehicles is 255"
+			exit 1
+		fi
+
+		m=0
+		while [ $m -lt ${target_number} ]; do
+			spawn_model ${target_vehicle}${LABEL} $(($n + 1)) $target_x $target_y $target_z $target_yaw
+			m=$(($m + 1))
+			n=$(($n + 1))
+		done
+	done
+
+fi
+trap "cleanup" SIGINT SIGTERM EXIT
+
+echo "Starting gazebo client"
+gzclient
