@@ -20,10 +20,10 @@ overrack-scan/
 │   · Status: active (`mission_runner`); reference (`px4_ros_com`) not compiled by default.
 ├── config/
 │   · `mission.yaml` points to a precomputed `route_file` and sets cruise speed plus thresholds (drift, temperature).
-│   · `px4_sitl.params` is an empty placeholder (loading disabled to avoid regressions).
+│   · No SITL params file is shipped; the loader stays disabled to avoid regressions.
 │   · Loaded by `overrack_mission` and previously by the legacy mission runner under `src/`.
 │   · Edit here to customise missions and alert thresholds; routes live under `config/routes/*.yaml`.
-│   · Status: `mission.yaml` active; param file quarantined until validated.
+│   · Status: `mission.yaml` active; bring your own PX4 params only after validation.
 ├── models/
 │   · Custom Gazebo models: shelves (`overrack_shelf`), markers (`scan_marker`), barcode board.
 │   · Used by the SDF world to recreate the indoor aisle.
@@ -95,7 +95,7 @@ overrack-scan/
   export GAZEBO_MODEL_PATH="$PX4_DIR/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models:$PROJECT_ROOT/models:${GAZEBO_MODEL_PATH:-}"
   export PX4_SIM_MODEL=iris_opt_flow   # avoid accidental overrides
   ```
-  > `px4_sitl.params` is disabled: do not export `PX4_RC_PARAMS_FILE` until the file is populated with validated values.
+  > No PX4 params file is shipped: keep `PX4_RC_PARAMS_FILE` unset unless you provide a validated file and re-enable the loader.
 
 ## Run
 - **Automatic stack**
@@ -140,7 +140,7 @@ overrack-scan/
 
 - **Parameters & preflight**
   - Arming blocked (IMU/GPS) → the `iris_opt_flow` model provides the required plugins; indoors enable `COM_ARM_WO_GPS=1` directly from the PX4 console.
-  - `.params` file → if you want to experiment, copy `config/px4_sitl.params` but do not re-enable the loader until validated (see `launch_px4_gazebo.sh:58-65`).
+  - `.params` file → if you want to experiment, provide your own params file and only then re-enable the loader (see `launch_px4_gazebo.sh:58-65`).
 
 - **Startup timing**
   - Missing `/fmu/out` topics → wait 10–15 s after PX4 bootstrap before launching ROS 2 or use the built-in `wait_for_topic`.
@@ -162,7 +162,7 @@ overrack-scan/
 ## Contributions & Conventions
 1. **New scripts**: keep descriptive prefixes (`run_`, `launch_`, `fix_`) and document usage in the README and `docs/structure_review.md`. Handle `PX4_DIR`, `ROS2_WS`, and env vars consistently with existing scripts.
 2. **Models & worlds**: add new assets under `models/<name>` with `model.config` + `model.sdf` and update the world or create a dedicated `.world`. Document which world/model to use in the README.
-3. **PX4 parameters**: work on copies of `px4_sitl.params`; do not enable automatic loading until tested. Document relevant parameters in `docs/structure_review.md` or a dedicated note.
+3. **PX4 parameters**: work on your own `.params` file; do not enable automatic loading until tested. Document relevant parameters in `docs/structure_review.md` or a dedicated note.
 4. **ROS 2 mission runner**: add new functionality inside `ros2_ws/src/overrack_mission`. Update `package.xml`, `setup.py`, and add tests/launch files if extra topics are introduced.
 5. **Documentation**: any substantial change (new script, launch flow change, world swap) must be reflected both in this README and in the report in `docs/structure_review.md`. Keep `docs/ROS2_MIGRATION.md` aligned when altering the bridge architecture.
 

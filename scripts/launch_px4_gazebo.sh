@@ -94,12 +94,12 @@ fi
 mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 
-# If a user param file exists, expose it to PX4 via px4-rc.params
+# Optional: load user PX4 params via px4-rc.params (disabled by default; no file shipped)
 PX4_PARAMS_CANDIDATE="$ROOT_DIR/config/px4_sitl.params"
-# if [[ -f "$PX4_PARAMS_CANDIDATE" ]]; then # NON Attivare da problemi!
-  #export PX4_RC_PARAMS_FILE="$PX4_PARAMS_CANDIDATE"
-  # Ensure px4-rc.params (loader) is discoverable by rcS PATH lookup
-  #export PATH="$ROOT_DIR/scripts:${PATH}"
+# if [[ -f "$PX4_PARAMS_CANDIDATE" ]]; then # enable only after validating the file
+#   export PX4_RC_PARAMS_FILE="$PX4_PARAMS_CANDIDATE"
+#   # Ensure px4-rc.params (loader) is discoverable by rcS PATH lookup
+#   export PATH="$ROOT_DIR/scripts:${PATH}"
 # fi
 
 if [[ ! -x "$BUILD_DIR/bin/px4" ]]; then
