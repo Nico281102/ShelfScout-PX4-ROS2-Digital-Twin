@@ -1,9 +1,5 @@
 api_version: 1
 
-defaults:
-  altitude_m: 1.2
-  hover_time_s: 3.0
-
 route_file: routes/drone1_dark_east.yaml
 
 inspection:

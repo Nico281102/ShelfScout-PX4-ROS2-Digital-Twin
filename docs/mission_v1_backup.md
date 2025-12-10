@@ -5,8 +5,6 @@ This document summarises the YAML schema consumed by `overrack_mission`.
 ```yaml
 api_version: 1
 
-defaults: {}
-
 route_file: routes/overrack_default.yaml
 
 inspection:
@@ -17,10 +15,11 @@ fallback:
   battery_warning: ["return_home"]
   battery_critical: ["land"]
 
-land_on_finish: false
+return_home_and_land_on_finish: false
 ```
 
 * Missions are always precomputed: `route_file` is required and the `mode` flag is no longer needed.
+* `defaults` is not supported; set altitude/hover in the route file (`default_altitude_m`, `default_hover_s`, `hover_s`).
 * `inspection.enable` inserts an `Inspect` stage with the given timeout. The inspection node should publish `OK`, `SUSPECT`, or `LOW_LIGHT` on `overrack/inspection`.
 * `fallback` entries list actions executed in order when a trigger fires. The supported actions are:
   * `return_home` – fly to the home waypoint.

@@ -76,9 +76,8 @@ def load_plan(path: pathlib.Path) -> MissionPlan:
     if version != 1:
         raise MissionPlanError("Mission 'api_version' must be 1")
 
-    defaults = data.get("defaults", {})
-    if not isinstance(defaults, dict):
-        raise MissionPlanError("Mission 'defaults' must be a mapping")
+    if "defaults" in data:
+        raise MissionPlanError("Mission no longer supports 'defaults'; set altitude/hover in the route file")
 
     inspection_cfg = _parse_inspection(data.get("inspection"))
 

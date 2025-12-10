@@ -5,21 +5,14 @@ This document defines the version 1 YAML schema consumed by `overrack_mission` f
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
 | `api_version` | int | yes | Must be `1`; used to guard parser changes. |
-| `defaults` | map | yes | Parametri globali opzionali. Altitude/hover arrivano dal route file. |
+| `defaults` | n/a | no | Non supportato: rimosso in v1, imposta quota/hover nel route file. |
 | `route_file` | string | yes | Path to a YAML route loaded by the mission runner (precomputed mode is implicit). |
 | `inspection` | map | optional | Enables the inspection stage, timeout, and optional acknowledgement gating. |
 | `fallback` | map | optional | Trigger → action list map; defaults ensure safe landing if omitted. |
 | `return_home_and_land_on_finish` | bool | optional | When true the FSM executes `return_home` + `land` at the end. |
 
 ## Defaults Block
-The `defaults` section seeds the mission planner and inspection behaviour for parameters that do not live in the route file:
-
-```yaml
-defaults:
-  # parametri aggiuntivi opzionali (es. override ispezione)
-```
-
-Altitude e hover arrivano dal route file (`default_altitude_m`, `default_hover_s`, e per-step `hover_s`); modifica il route file per cambiarli.
+Non più supportato: il parser rifiuta `defaults`. Quota e hover vanno definiti nel route file (`default_altitude_m`, `default_hover_s`, `hover_s` per step).
 
 ## Precomputed Routes (Only Mode)
 Missions implicitly use precomputed routes; no `mode` flag is required (any other value is rejected). Reference an external route file:
@@ -32,7 +25,6 @@ The referenced YAML follows the schema in `planning/precomputed_routes.py`, lett
 ## Example Mission
 ```yaml
 api_version: 1
-defaults: {}
 route_file: routes/overrack_default.yaml
 inspection:
   enable: true
