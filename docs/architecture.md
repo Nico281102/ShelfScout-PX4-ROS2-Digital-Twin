@@ -2,35 +2,148 @@
 
 # Architecture
 
-OverRack Scan runs PX4 SITL inside a Gazebo Classic world and drives it with ROS 2 nodes. A Micro XRCE-DDS bridge keeps PX4 and ROS 2 in sync; the bridge internals live in `docs/ROS2_PX4_BRIDGING.md`. The focus here is how the project is structured and how the pieces are wired together for the single-drone pipeline.
+OverRack Scan runs PX4 SITL inside a Gazebo Classic world and drives it with ROS 2 nodes. A Micro XRCE-DDS bridge keeps PX4 and ROS 2 in sync; the bridge internals live in `docs/ROS2_PX4_BRIDGING.md`. The focus here is how the project is structured and how the pieces are wired together for the single-drone pipeline. (we need to abstract)
+
+```mermaid
+flowchart LR
+    %% ---------------------------------------------------------
+    %% 1. SIMULATION ENVIRONMENT
+    %% ---------------------------------------------------------
+    subgraph Sim_Env["Simulation environment (host PC)"]
+        direction TB
+        GZ["Gazebo Classic<br>(shared world: physics, sensors, rendering)"]
+        
+        subgraph Fleet["PX4 fleet"]
+            PX4_1["PX4 Autopilot (drone 1)"]
+            PX4_N["PX4 Autopilot (drone N)"]
+        end
+
+        PX4_1 <== "MAVLink (TCP/UDP)" ==> GZ
+        PX4_N <== "MAVLink (TCP/UDP)" ==> GZ
+    end
+
+    %% ---------------------------------------------------------
+    %% 2. MIDDLEWARE (BRIDGE)
+    %% ---------------------------------------------------------
+    PX4_1 <--> AGENT
+    PX4_N <--> AGENT
+
+    AGENT["Micro XRCE-DDS Agent<br>(bridge UDP ↔ DDS)"]
+
+    %% ---------------------------------------------------------
+    %% 3. ROS 2 SYSTEM
+    %% ---------------------------------------------------------
+    subgraph ROS_System["ROS 2 system (ros2_ws)"]
+        direction TB
+
+        %% ----- DRONE 1 -----
+        subgraph NS_1["Namespace: /px4_1"]
+            direction TB
+
+            %% PX4-facing ROS nodes
+            subgraph PX4_NODES_1["PX4-facing ROS 2 nodes"]
+                direction TB
+                TOPICS_1[("/px4_1/fmu/*<br>topics")]
+                Mission_1["mission_runner"]
+                Param_1["px4_param_setter"]
+                Other_1["other PX4-aware nodes"]
+
+                TOPICS_1 <==> Mission_1
+                TOPICS_1 <==> Param_1
+                TOPICS_1 -.-> Other_1
+            end
+
+            %% Payload/inspection pipeline
+            subgraph PAYLOAD_1["Payload and inspection"]
+                direction TB
+                Vision_1["inspection_node"]
+                Torch_1["torch_controller"]
+                Vision_1 --> Torch_1
+            end
+        end
+
+        %% ----- DRONE N -----
+        subgraph NS_N["Namespace: /px4_N"]
+            direction TB
+
+            subgraph PX4_NODES_N["PX4-facing ROS 2 nodes"]
+                direction TB
+                TOPICS_N[("/px4_N/fmu/*<br>topics")]
+                Mission_N["mission_runner"]
+                Param_N["px4_param_setter"]
+                Other_N["other PX4-aware nodes"]
+
+                TOPICS_N <==> Mission_N
+                TOPICS_N <==> Param_N
+                TOPICS_N -.-> Other_N
+            end
+
+            subgraph PAYLOAD_N["Payload and inspection"]
+                direction TB
+                Vision_N["inspection_node"]
+                Torch_N["torch_controller"]
+                Vision_N --> Torch_N
+            end
+        end
+    end
+
+    %% ---------------------------------------------------------
+    %% CONNECTIONS (bridge to topic bus)
+    %% ---------------------------------------------------------
+    AGENT <==> TOPICS_1
+    AGENT <==> TOPICS_N
+
+    %% ---------------------------------------------------------
+    %% DIRECT SENSOR/ACTUATOR (bypassing bridge)
+    %% ---------------------------------------------------------
+    GZ -- "camera stream<br>.../camera/front/image_raw" --> Vision_1
+    Torch_1 -- "light control<br>.../overrack/torch_enable" --> GZ
+
+    GZ -- "camera stream<br>.../camera/front/image_raw" --> Vision_N
+    Torch_N -- "light control<br>.../overrack/torch_enable" --> GZ
+
+```
+
+### PX4 facing ROS2 nodes
+```mermaid
+flowchart TB
+    subgraph PX4_SIDE["PX4 autopilot (/px4_n)"]
+        PX4[" PX4 Autopliot"]
+    end
+
+    subgraph ROS_SIDE["ROS 2 (/px4_n namespace)"]
+        subgraph Mission["mission_runner"]
+            Tele["telemetry helper<br>(subscribers)"]
+            Setp["setpoints helper<br>(publishers)"]
+        end
+        Param["px4_param_setter"]
+    end
+
+    %% Telemetry consumers
+    PX4 -- "/px4_n/fmu/out/vehicle_local_position<br>/vehicle_status<br>/battery_status" --> Tele
+    PX4 -- "/px4_n/fmu/out/vehicle_status" --> Param
+
+    %% Offboard/command publishers
+    Setp -- "/px4_n/fmu/in/offboard_control_mode<br>/trajectory_setpoint<br>/vehicle_command" --> PX4
+
+    %% MAVLink param push (outside DDS topics)
+    Param -. "MAVSDK (MAVLink param set)<br>(no /fmu/in/* topic)" .-> PX4
+```
+`mission_runner` is the only ROS node here; it embeds two helpers: `telemetry` (subscribes to `/fmu/out/*`) and `setpoints` (publishes to `/fmu/in/*`). `px4_param_setter` listens to `/fmu/out/vehicle_status` to detect PX4 STANDBY and then uses MAVSDK (over MAVLink) to push parameters directly to the autopilot, bypassing the `/fmu/in/*` bus.
 
 ## Stack Overview (single drone)
-```
-Gazebo Classic world (overrack_indoor.world)
-    ↕  PX4 SITL (gazebo-classic_iris_opt_flow)
-    ↕  XRCE bridge (see ROS2_PX4_BRIDGING.md)
-ROS 2 nodes (mission_runner + inspection_node + metrics_node + torch plugin)
-    ↕  data/metrics, data/logs, data/images
-```
-
-- The launch scripts read `config/sim/default.yaml` to choose the world, mission file, and agent command. Edit that YAML instead of passing long CLI flags.
-- `mission_runner` applies the mission YAML (see `docs/mission_language.md`) and publishes Offboard setpoints; inspection + metrics live in the same executor to keep clocks aligned.
-- PX4 ↔ ROS traffic uses `px4_msgs` over the `/fmu/in/*` and `/fmu/out/*` topics. Topic mapping, QoS, and agent setup are detailed in `docs/ROS2_PX4_BRIDGING.md`.
-- Runtime artefacts are persisted under `data/` (logs, metrics, images) so every run is auditable.
+- Simulation: Gazebo Classic world + PX4 SITL model chosen from `config/sim/default.yaml` (defaults to `worlds/overrack_indoor.world` and `iris_opt_flow` unless overridden via env/params).
+- Bridge: Micro XRCE-DDS Agent (`MicroXRCEAgent udp4 ...` by default) exposes `/fmu/in/*` and `/fmu/out/*` on DDS.
+- ROS 2 nodes per vehicle: `mission_runner` (telemetry + setpoints helpers), `inspection_node`, `mission_metrics`, `torch_controller`; `px4_param_setter` optionally pushes parameters via MAVSDK/MAVLink once PX4 reaches STANDBY.
+- Outputs: logs under `data/logs/` (PX4, Gazebo, micro_xrce_agent, mission_runner), metrics CSVs under `data/metrics/`, images/snapshots under `data/images/`.
 
 ## Runtime Flow
-1. `scripts/run_ros2_system.sh` sources `scripts/.env`, reads `config/sim/default.yaml`, and spawns PX4 + Gazebo via `scripts/launch_px4_gazebo.sh`.
-2. The same script launches the XRCE bridge (defaults to `MicroXRCEAgent udp4 ...`) and tails logs to `data/logs/micro_xrce_agent.out`.
-3. After ensuring `ros2_ws/install/setup.bash` exists (builds if missing), it launches `mission_runner` (with inspection + metrics) using the same param file.
-4. `px4_param_setter` (optional) pushes battery and failsafe parameters to PX4 using MAVLink UDP, keeping SITL settings consistent across runs.
-5. Data products (metrics, images, logs) are written under `data/` and stay aligned to the mission timestamp for later analysis.
+This section is a high-level summary of the orchestrator; for CLI flags, env resolution, and logging paths see `docs/run_system.md`.
+1. `scripts/run_system.sh` (multi-first) loads `scripts/.env`, resolves paths (`PX4_DIR`, ROS workspace), and reads the param YAML (`config/sim/multi_1drone.yaml` by default; falls back to `config/sim/multi.yaml`). The legacy `run_ros2_system.sh` still exists for the old single-path flow.
+2. Derives world, mission file, agent command, and `drones` list via `param_utils`; builds the ROS 2 workspace if needed and sources the chosen ROS distro.
+3. Starts PX4 + Gazebo via `launch_px4_gazebo_multi.sh`, with `--headless` if requested.
+4. Starts the Micro XRCE Agent with the resolved command and waits for `/fmu/out/vehicle_status` and `/fmu/out/vehicle_local_position` to appear.
+5. Launches `ros2 launch overrack_mission mission.sim.launch.py params_file:=<...> mission_file:=<...>`, which spins up (per namespace) `mission_runner`, `inspection_node`, `mission_metrics`, `torch_controller`, and `px4_param_setter` using the same params file/overrides.
 
-## Data and Coordinates
-- Mission plans stay ENU; the PX4 adapter converts to NED, subtracts the spawn offset learned from the first `/fmu/out/vehicle_local_position`, and clamps setpoints to `world_bounds` from `config/sim/default.yaml`.
-- Metrics and images are written under `data/metrics/<timestamp>/` and `data/images/`; logs for PX4, the agent, and the mission runner live in `data/logs/`.
-- Gazebo models from PX4 and this repo are added to `GAZEBO_MODEL_PATH` automatically by the launch scripts; the torch plugin is loaded from `ros2_ws/install/lib` via `GAZEBO_PLUGIN_PATH`.
-
-## Multi-Drone Outlook (WIP branch)
-- Architecture will mirror the single-drone stack with separate vehicle IDs, ports, and namespaces per drone (e.g., distinct agent commands or XRCE sessions).
-- Mission files will need either per-vehicle sections or multiple mission files; the current `mission_language.md` documents the single-vehicle schema and will be extended when the branch lands.
-- Troubleshooting and PX4/Gazebo notes already call out where per-vehicle parameters (ports, model names, uORB↔DDS mapping) will need duplication.
+## Data 
+- Metrics, inspection logs, and snapshots are written under `data/metrics/` and `data/images/`; PX4/agent/mission logs go to `data/logs/`.

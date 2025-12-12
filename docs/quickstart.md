@@ -12,9 +12,11 @@ Before starting, ensure your system is prepared.
   nano scripts/.env  # Adjust SSDT_PX4_DIR and SSDT_ROS_WS
   source scripts/.env
   ```
-- Patch PX4 multi-run script 
+- Patch PX4 multi-run script and DDS topics for battery status (details in `docs/environment_setup.md`):
   ```bash
   scripts/apply_px4_sitl_multiple_run_patch.sh --px4-dir "$SSDT_PX4_DIR"
+
+  ./scripts/apply_patch_dds_topics.sh
   ```
 
 ## 2. Key Directories
@@ -23,7 +25,7 @@ A quick overview of where files are located:
 
 * **`config/`**: Simulation parameters (e.g., `sim/multi.yaml`), mission behaviors, and geometric routes (`routes/`).
 * **`models/` & `worlds/`**: Custom Gazebo Classic assets (racks, warehouse environment).
-* **`scripts/`**: Launch orchestrators (`run_ros2_system.sh`) and helper utilities.
+* **`scripts/`**: Launch orchestrators (`run_system.sh`; legacy `run_ros2_system.sh`) and helper utilities.
 * **`ros2_ws/`**: The ROS 2 workspace containing the `overrack_mission` package (runner, inspection, metrics) and PX4 bridges.
 * **`data/`**: Runtime artifacts (logs, CSV metrics, camera snapshots).
 
@@ -40,7 +42,7 @@ This is the entry point (passed via `--params`). It defines the world, the numbe
 run_ros2_system:
   ros__parameters:
     world_file: worlds/overrack_indoor.world
-    agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4  # fallback; di norma ogni drone dichiara il proprio agent_cmd
+    agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4 
     # Blob YAML serializzato per evitare limiti rcl su liste di mappe
     drones_yaml: |
       - name: drone1
@@ -48,7 +50,6 @@ run_ros2_system:
         model: iris_opt_flow
         spawn: {x: 1.5, y: 0.5, z: 0.3, yaw: 1.57}
         mavlink_udp_port: 14541
-        agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
         px4_params:
           SIM_BAT_DRAIN: 120.0
           SIM_BAT_MIN_PCT: 0.03
@@ -205,7 +206,7 @@ route:
 ## Run The simulation
 From the repository root (ensure your environment is sourced), run the orchestrator script:
 ```bash
-./scripts/run_ros2_system.sh --gui --params config/sim/default.yaml
+./scripts/run_system.sh --gui --params config/sim/multi_1drone.yaml
 ```
 ### Simulation Parameters
 The --params flag points to a high-level simulation configuration file. This file tells the launcher:
