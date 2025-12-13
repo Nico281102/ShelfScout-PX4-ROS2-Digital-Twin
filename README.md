@@ -12,7 +12,13 @@ Concise guide to the simulation workflow. Full details live in `docs/`.
   ```bash
   ./scripts/run_system.sh --gui --params config/sim/multi_2drones.yaml
   ```  
-  Use `--headless` on CI/SSH. Pick mission/world/agent in the params YAML. Short walkthrough and expected output: `docs/quickstart.md`.
+  Use `--headless` on CI/SSH. Pick mission/world/agent in the params YAML.
+
+# Expected output
+
+[![ShelfScout Multi-Drone Demo](docs/preview/multli_2drones_preview.png)](https://youtu.be/KUdoRD7VAOU)
+
+Short screencast + walkthrough: `docs/quickstart.md`.
 
 ## Configuration
 - Simulation params (world, agents, drones): `config/sim/*.yaml` — structure described in `docs/mission_language.md`.
@@ -26,7 +32,11 @@ Concise guide to the simulation workflow. Full details live in `docs/`.
 - Common issues and fixes: `docs/troubleshooting.md`.
 
 ## How AI was used in this project
-- Assisted with major README refactors so the overview/quick start now points readers to the right docs.
-- Helped spot subtle mission/EKF inconsistencies during multi-drone runs by surfacing telemetry logs and explaining the spawn/yaw gating.
-- Generated draft documentation pulls (this very intro, mission language pointers, etc.) that you later edited and polished.
-- Created cover art/thumbnail ideas for the screencast and quickstart sections to keep the tutorial story cohesive.
+- Assisted with the README refactor so the overview/quick start now points readers at the right docs.
+- Generated the draft documentation text you later edited, including intro plus language/mission pointers.
+- Suggested cover art/thumbnail ideas for the screencast so the tutorial story stays cohesive.
+- Fast prototyping partner for text/code experiments.
+- Helped understand the ROS 2 ↔ PX4 bridge by summarizing the structure from the code/docs.
+- Caveats to remember:
+  - Don’t hand over total control; review every suggestion before applying it.
+  - Use the tool as a guided assistant, not an autopilot—steer it, don’t let it steer you.
