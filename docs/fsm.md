@@ -2,7 +2,13 @@
 
 # Mission FSM
 
-Current single-drone state machine as implemented in `core/fsm.py`. Battery triggers start the mission-defined fallback action queue; `return_home_and_land_on_finish:true` appends `return_home` + `land` after the last waypoint.
+`mission_runner` is the ROS 2 node that owns the FSM. Inside `nodes/mission_control_node.py` it instantiates a `MissionController` that loads the YAML mission (`mission_v1`), feeds it to `core/fsm.py`, and delivers setpoints/commands via `px4io/setpoints.py` while listening to `/px4_n/fmu/out/*` telemetry through `px4io/telemetry.py`. The controller therefore ties together:
+
+- the mission semantics and fallbacks defined in `docs/mission_v1.md`,
+- the FSM logic described here, and
+- the ROS/PX4 bridge described in `docs/architecture.md`/`docs/uxrce_dds_px4_ros_bridge.md`.
+
+Battery triggers start the mission-defined fallback action queue; `return_home_and_land_on_finish:true` appends `return_home` + `land` after the last waypoint.
 
 ```mermaid
 flowchart TD

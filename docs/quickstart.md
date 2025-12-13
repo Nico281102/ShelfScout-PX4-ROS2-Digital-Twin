@@ -229,10 +229,9 @@ To stop the simulation, simply press Ctrl+C in the terminal; `run_system.sh` gra
 > ```
 
 [![ShelfScout 3-Drones Demo](preview/multli_3drones_preview.png)](https://youtu.be/CCuXt1dZ7GA)
-This video shows the `multi_3drones.yaml` run: three PX4 instances taking off, executing their routes, and landing in sync.
+This video captures a `multi_3drones.yaml` run: three PX4 instances take off, execute their routes, and land in a coordinated fashion.
 
-**What to notice**
-- The mission runner keeps each drone in its own namespace (`px4_1`, `px4_2`, `px4_3`) with separate logs, cameras, and torch controllers.
-- If `drone1` loses the link (e.g., `sim.disable_link_after_s` elapses), the fallback kicks in: Offboard setpoints stop, PX4’s native failsafe engages, and the mission runner detects the missing telemetry via `/fmu/out/vehicle_local_position`.
-- The UI shows how the stack scales, proving the architecture can handle N drones with per-instance params.
-
+**What to focus on**
+- Each drone stays in a dedicated namespace (`px4_1`, `px4_2`, `px4_3`), which keeps logs, cameras, and torches isolated while the mission runner orchestrates them together.
+- Any link loss (e.g., after `sim.disable_link_after_s` expires) triggers the fallback: offboard setpoints stop, PX4’s native failsafe engages, and the mission runner notices the missing `/px4_X/fmu/out/vehicle_local_position` updates.
+- The screenshot also demonstrates how the architecture scales, proving per-drone params keep the stack manageable as N grows.

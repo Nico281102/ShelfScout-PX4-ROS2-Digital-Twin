@@ -83,7 +83,7 @@ Place this in `PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_run.sh` after 
 **Notes (optional)**
 
 - Mission fallbacks (`return_home`, `land`, etc.) trigger only when `battery_status` topics reflect the chosen thresholds. Misaligned values can keep the drone flying past the planned budget.
-- Gazebo’s battery plugin is ignored: PX4 uses its internal SITL battery simulator. Tune PX4 parameters instead of editing SDF battery plugins.
+- Gazebo’s battery plugin is ignored: PX4 uses its internal SITL battery simulator. Tune PX4 parameters instead of editing SDF battery plugins, and keep thresholds consistent—random battery values can yield unrealistic drains or early RTL/land behaviors.
 
 ## Battery topic missing on ROS 2
 
@@ -374,3 +374,57 @@ Keep a transparent visual:
 1. Rebuild PX4 (`make px4_sitl_default`).
 2. Try `--headless` to rule out GUI issues.
 3. Ensure `GAZEBO_MODEL_PATH` includes both PX4 models and OverRack models.
+
+## Multi-drone startup pitfalls
+
+Running multiple PX4 instances introduces extra failure modes beyond the single-drone flow. The symptoms below map directly to the fixes from `docs/multidrone_migration.md` so you can recover in minutes.
+
+#### Gazebo template lookup ignores repo models
+*Symptoms:* PX4 complains `TemplateNotFound` for `iris_opt_flow`, and Gazebo never spawns the drone.  
+*Cause:* `sitl_multiple_run.sh` originally scanned only the PX4 tree for templates, so models under `models/iris_opt_flow` were hidden.  
+*Fix:* Add the repository `models/` directory to `GAZEBO_MODEL_PATH`, patch PX4 to search every entry (not just its own `Tools/.../models`), and ship an `.sdf.jinja` inside the repo. Run `jinja_gen.py` with the template folder as `env_dir` so custom macros resolve correctly.
+
+#### SYSID mismatch (target_system vs actual)
+*Symptoms:* Arming/Offboard commands go to the wrong vehicle.  
+*Cause:* `sitl_multiple_run.sh` assigns MAV SYSIDs starting at `1+N`, so the configured vehicle ID no longer matches the actual SYSID.  
+*Fix:* Telemetry reads the live `system_id` from `VehicleStatus`, and `SetpointPublisher` uses that for `target_system`/`source_system`, falling back to the configured `vehicle_id` only with a warning so commands follow the real SYSID.
+
+#### Torch plugin attaches to the wrong model
+*Symptoms:* The first drone always grabs the torch light even when multiple instances are running.  
+*Cause:* The custom torch plugin searched for `iris_opt_flow` globally without considering namespace.  
+*Fix:* Filter by each model’s namespace (e.g., `torch_link::torch_light`) and name the ROS torch controllers per-instance so each plugin stays bound to its own PX4 node. Rebuild `overrack_light_plugin`.
+
+#### px4_param_setter runtime error during shutdown
+*Symptoms:* A benign `RuntimeError: Context must be initialized` appears when shutting down the node.  
+*Cause:* The node launches even when no `px4_params` block is defined.  
+*Fix:* Guard the node to run only when `px4_params` exists, or ignore the error when it appears during a clean shutdown.
+
+#### Airframe whitelist limit
+*Symptoms:* New airframes silently fall back to iris or fail to load.  
+*Cause:* `sitl_multiple_run.sh` only supports a fixed list (`iris`, `plane`, `standard_vtol`, `rover`, `r1_rover`, `typhoon_h480`, `iris_opt_flow`).  
+*Fix:* Extend the whitelist to include the desired airframe or duplicate/patch an existing iris template with your custom sensors so PX4 can spawn it.
+
+## Adding a custom drone model (multi-run)
+
+**Goal:** Add a new SDF/Jinja model and make multi-run spawn it correctly with PX4.
+
+1) Create the model under `models/<name>/<name>.sdf.jinja` (copy from `iris_opt_flow` if needed) and keep plugin namespaces parametric (e.g., `px4_<idx-1>` in camera/torch plugins).  
+2) Ensure `GAZEBO_MODEL_PATH` includes the repo `models/` directory so PX4 can find the template.  
+3) Extend PX4’s `sitl_multiple_run.sh` whitelist to include `<name>` (or map it to `gazebo-classic_iris` if it’s an iris variant).  
+4) Configure the airframe mapping: set `PX4_SIM_MODEL` (or `resolve_px4_sim_model`) to a compatible PX4 airframe so motor/sensor expectations match your SDF.  
+5) Add an entry to `config/sim/multi.yaml` with `model: <name>`, spawn pose, unique `mavlink_udp_port`, unique XRCE agent port, and optional per-drone `px4_params`.  
+6) Run `./scripts/run_system.sh --params config/sim/multi.yaml` and check `data/logs/px4_gazebo.out` plus `ros2 topic list` to confirm the model spawned and the namespaced PX4 topics are present.
+
+## uORB ↔ DDS mapping updates
+
+When adding new uORB topics (e.g., for multi-drone coordination), update the mapping so ROS 2 sees them:
+
+1) Edit `src/modules/uxrce_dds_client/dds_topics.yaml` in your PX4 tree and list the new publications/subscriptions.  
+2) Rebuild PX4 to regenerate the uXRCE client code: `make px4_sitl_default`.  
+3) Rebuild the ROS messages/bridge so DDS picks up the new types:  
+   ```bash
+   cd "$SSDT_ROS_WS"
+   colcon build --symlink-install --packages-select px4_msgs px4_ros_com
+   ```  
+4) Relaunch `run_system.sh` and verify the new `/fmu/out/*` or `/fmu/in/*` topics appear on the ROS graph.
+

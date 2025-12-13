@@ -2,7 +2,7 @@
 
 # Architecture
 
-OverRack Scan runs PX4 SITL inside a Gazebo Classic world and drives it with ROS 2 nodes. A Micro XRCE-DDS bridge keeps PX4 and ROS 2 in sync; the bridge internals live in `docs/ROS2_PX4_BRIDGING.md`. The focus here is how the project is structured and how the pieces are wired together for the single-drone pipeline. (we need to abstract)
+OverRack Scan runs PX4 SITL inside a Gazebo Classic world and drives it with ROS 2 nodes. A Micro XRCE-DDS bridge keeps PX4 and ROS 2 in sync; the bridge internals live in `docs/uxrce_dds_px4_ros_bridge.md`. The focus here is how the project is structured and how the pieces are wired together for the single-drone pipeline. (we need to abstract)
 
 ```mermaid
 flowchart LR
@@ -144,6 +144,11 @@ This section is a high-level summary of the orchestrator; for CLI flags, env res
 3. Starts PX4 + Gazebo via `launch_px4_gazebo_multi.sh`, with `--headless` if requested.
 4. Starts the Micro XRCE Agent with the resolved command and waits for `/fmu/out/vehicle_status` and `/fmu/out/vehicle_local_position` to appear.
 5. Launches `ros2 launch overrack_mission mission.sim.launch.py params_file:=<...> mission_file:=<...>`, which spins up (per namespace) `mission_runner`, `inspection_node`, `mission_metrics`, `torch_controller`, and `px4_param_setter` using the same params file/overrides.
+
+## Models and PX4 airframes
+- Gazebo loads the SDF model you pick (e.g., `models/iris_opt_flow/iris_opt_flow.sdf`), while PX4 flies an airframe selected by `PX4_SIM_MODEL` (mapped in `launch_px4_gazebo_multi.sh`). Keep those aligned: motor layout, mass/inertia, and sensor plugins in the SDF should match what the chosen airframe expects.
+- Custom models can live under `models/<name>/<name>.sdf.jinja`. Ensure `GAZEBO_MODEL_PATH` includes `models/`, extend the PX4 `sitl_multiple_run.sh` whitelist for `<name>`, and map it to an appropriate PX4 airframe (or add a new one in PX4) so the control stack remains stable.
+- If you change prop layout or mass, update both the SDF and the PX4 airframe constants; mismatches show up as EKF instability or sluggish control.
 
 ## Data 
 - Metrics, inspection logs, and snapshots are written under `data/metrics/` and `data/images/`; PX4/agent/mission logs go to `data/logs/`.

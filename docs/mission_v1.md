@@ -5,27 +5,23 @@ This document defines the version 1 YAML schema consumed by `overrack_mission` f
 | Key | Type | Required | Description |
 | --- | --- | --- | --- |
 | `api_version` | int | yes | Must be `1`; used to guard parser changes. |
-| `defaults` | n/a | no | Non supportato: rimosso in v1, imposta quota/hover nel route file. |
 | `route_file` | string | yes | Path to a YAML route loaded by the mission runner (precomputed mode is implicit). |
 | `inspection` | map | optional | Enables the inspection stage, timeout, and optional acknowledgement gating. |
 | `fallback` | map | optional | Trigger → action list map; defaults ensure safe landing if omitted. |
 | `return_home_and_land_on_finish` | bool | optional | When true the FSM executes `return_home` + `land` at the end. |
 
-## Defaults Block
-Non più supportato: il parser rifiuta `defaults`. Quota e hover vanno definiti nel route file (`default_altitude_m`, `default_hover_s`, `hover_s` per step).
-
 ## Precomputed Routes (Only Mode)
 Missions implicitly use precomputed routes; no `mode` flag is required (any other value is rejected). Reference an external route file:
 
 ```yaml
-route_file: routes/overrack_default.yaml
+route_file: routes/mission_drone1_north.yaml
 ```
-The referenced YAML follows the schema in `planning/precomputed_routes.py`, letting each leg define `position`, optional `hover_s`, `inspect`, `yaw_deg`, and named actions (e.g., `snapshot`, `align_camera`). Route-level actions are non-blocking tags; flight commands such as `land` are not supported here (use fallbacks or `return_home_and_land_on_finish`).
+The referenced YAML follows the schema in `planning/precomputed_routes.py`, letting each leg define `position`, optional `hover_s`, `inspect`, `yaw_deg`, and named actions (e.g., `snapshot`). Route-level actions are non-blocking tags; flight commands such as `land` are not supported here (use fallbacks or `return_home_and_land_on_finish`).
 
 ## Example Mission
 ```yaml
 api_version: 1
-route_file: routes/overrack_default.yaml
+route_file: routes/drone1_shelf_east.yaml
 inspection:
   enable: true
   timeout_s: 4.0
@@ -38,20 +34,20 @@ return_home_and_land_on_finish: true
 ## Workspace Bounds and Cruise Speed Limits
 The runtime enforces the indoor volume declared via the ROS parameter `world_bounds.{x,y,z}` (meters in PX4’s NED frame; see `config/sim/default.yaml`). Every ENU waypoint is mirrored into those bounds during parsing; if any `x`, `y`, or `z` lies outside the envelope the mission loader aborts with a descriptive error. At runtime, PX4 setpoints are also clamped to the same box after subtracting the spawn offset measured from `/fmu/out/vehicle_local_position`, ensuring the drone cannot drift through walls even if a waypoint was hand-edited.
 
-La cruise speed non viene più validata né usata dal mission runner: la velocità di crociera è gestita dai parametri PX4 (es. MPC_XY_VEL_MAX).
+Cruise speed is no longer validated or consumed by the mission runner: it is controlled by the PX4 parameters (e.g., `MPC_XY_VEL_MAX`).
 
 ## Inspection Configuration
-Inspection inserts a dedicated stage after each hover so that `inspection_node.py` can classify the rack slot. The block looks like:
+Inspection inserts a dedicated stage after each hover so that `inspection_node.py` can examine the latest camera frame and tag the rack slot as `OK`, `SUSPECT`, or `LOW_LIGHT`. The block looks like:
 
 ```yaml
 inspection:
   enable: true              # default false
   timeout_s: 4.0            # maximum dwell time awaiting inspection result
   require_ack: false        # optional; if true mission waits for explicit OK/SUSPECT (LOW_LIGHT only toggles the torch)
-  image_topic: /camera/image_raw  # overrides default ROS topic for the node
+  image_topic: /camera/image_raw  # overrides default ROS topic for the node, do not do it if you don't know what you are doing.
 ```
 - When disabled, the mission runner simply respects `hover_time_s` and advances.
-- When enabled, the inspector publishes `overrack/inspection` events that feed metrics and torch control; they no longer trigger FSM fallbacks.
+- When enabled, the inspector publishes `overrack/inspection` events that feed metrics and torch control; they no longer trigger FSM fallbacks. Future improvements could plug vision/ML classifiers into the same inspection window so richer rack-slot labels are available while the FSM logic stays unchanged.
 - Setting `require_ack` to `true` forces the FSM to wait for an inspection verdict (or timeout) before advancing to the next waypoint.
 
 ## Fallback Triggers and Actions
@@ -100,17 +96,19 @@ The ROS 2 package `overrack_mission` exposes three primary entry points via `col
 ### Step Semantics and Stabilization Logic
 Each entry in a route step list is treated as an atomic navigation goal: the controller flies to the specified position/yaw, enters `HOVER`, and immediately fires any configured inspection or action hooks. There is currently no delay between entering `HOVER` and triggering the action, so a `snapshot` can occur while PX4 is still finishing the last few centimetres of translation or yaw alignment.
 
+**Note:** because every action or inspection hook fires the instant the step enters `HOVER`, simply increasing `hover_s` on the first arrival step will not push the `snapshot` later—it will still trigger immediately. The stabilization trick therefore relies on splitting the waypoint into an “arrival” step, which lets PX4 settle without actions, and a follow-up “photo” step where the actual snapshot and longer hover window occur.
+
 Missions that require perfectly steady captures can encode a two-step convention at the route level:
 
 ```yaml
 - name: F_arrival
   position: [0.0, 3.5, 1.2]
-  hover_s: 1.0
+  hover_s: 5.0 # Stabilize the drone
   inspect: false
 
 - name: F_photo
   position: [0.0, 3.5, 1.2]
-  hover_s: 10.0
+  hover_s: 3.0 #
   inspect: true
   action: snapshot
 ```
@@ -138,4 +136,4 @@ Fallback triggers are telemetry-derived events raised inside `mission_runner` (`
 
 Actions specified in the YAML are executed by the `MissionStateMachine` as synchronous routines. The controller inhibits new setpoints while actions marked as blocking (`return_home`, `land`) are running to avoid conflicting commands. Non-blocking actions (`hold`, `increase_hover`) simply adjust timers and resume the nominal mission.
 
-For details on how PX4 topics are bridged through Micro XRCE-DDS, refer to `docs/ROS2_PX4_BRIDGING.md`.
+For details on how PX4 topics are bridged through Micro XRCE-DDS, refer to `docs/uxrce_dds_px4_ros_bridge.md`.

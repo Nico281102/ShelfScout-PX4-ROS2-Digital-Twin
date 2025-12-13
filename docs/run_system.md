@@ -50,4 +50,4 @@
 ## Where to look next
 - Architecture and topic wiring: `docs/architecture.md` (PX4/ROS topic map and per-namespace nodes).
 - Mission language and FSM: `docs/mission_language.md`, `docs/mission_v1.md`.
-- PX4↔ROS bridging details: `docs/ROS2_PX4_BRIDGING.md`.
+- PX4↔ROS bridging details: `docs/uxrce_dds_px4_ros_bridge.md`.
