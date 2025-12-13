@@ -18,7 +18,7 @@ Concise guide to the simulation workflow. Full details live in `docs/`.
 
 [![ShelfScout Multi-Drone Demo](docs/preview/multli_2drones_preview.png)](https://youtu.be/KUdoRD7VAOU)
 
-Short screencast + walkthrough: `docs/quickstart.md`.
+Watch the screencast and follow the walkthrough: `docs/quickstart.md`.
 
 ## Configuration
 - Simulation params (world, agents, drones): `config/sim/*.yaml` — structure described in `docs/mission_language.md`.
@@ -32,11 +32,11 @@ Short screencast + walkthrough: `docs/quickstart.md`.
 - Common issues and fixes: `docs/troubleshooting.md`.
 
 ## How AI was used in this project
-- Assisted with the README refactor so the overview/quick start now points readers at the right docs.
-- Generated the draft documentation text you later edited, including intro plus language/mission pointers.
-- Suggested cover art/thumbnail ideas for the screencast so the tutorial story stays cohesive.
-- Fast prototyping partner for text/code experiments.
-- Helped understand the ROS 2 ↔ PX4 bridge by summarizing the structure from the code/docs.
+- Assisted with heavy refactors such as this README overhaul.
+- Generated the initial documentation drafts that the developer later revised (quickstart, architecture, etc.).
+- Suggested cover art/thumbnail ideas so the screencast is easier to understand at a glance.
+- Served as a fast prototyping partner for text/code snippets.
+- Helped clarify the ROS 2 ↔ PX4 bridge by summarizing the original PX4 docs: https://docs.px4.io/v1.14/ko/middleware/uxrce_dds.html.
 - Caveats to remember:
   - Don’t hand over total control; review every suggestion before applying it.
   - Use the tool as a guided assistant, not an autopilot—steer it, don’t let it steer you.
