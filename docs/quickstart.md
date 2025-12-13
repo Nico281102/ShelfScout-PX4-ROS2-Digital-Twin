@@ -23,7 +23,7 @@ Before starting, ensure your system is prepared.
 
 A quick overview of where files are located:
 
-* **`config/`**: Simulation parameters (e.g., `sim/multi.yaml`), mission behaviors, and geometric routes (`routes/`).
+* **`config/`**: Simulation parameters (e.g., `sim/multi_1drone.yaml`), mission behaviors, and geometric routes (`routes/`).
 * **`models/` & `worlds/`**: Custom Gazebo Classic assets (racks, warehouse environment).
 * **`scripts/`**: Launch orchestrators (`run_system.sh`; legacy `run_ros2_system.sh`) and helper utilities.
 * **`ros2_ws/`**: The ROS 2 workspace containing the `overrack_mission` package (runner, inspection, metrics) and PX4 bridges.
@@ -222,7 +222,13 @@ This same workflow is captured in the screencast below.
 
 To stop the simulation, simply press Ctrl+C in the terminal; `run_system.sh` gracefully shuts down Gazebo, PX4, the agent, and the mission node.
 
-> **Note:** the demo uses a single-drone params file, but you can point `run_system.sh` at any other YAML (e.g. `config/sim/multi.yaml`,`config/sim/multi_3drones.yaml` ) to exercise multi-agent worlds. Re-run the command with your chosen file to generate a matching screencast:
+> **Note:** the demo uses a single-drone params file, but you can point `run_system.sh` at any other YAML (e.g. `config/sim/multi.yaml`, `config/sim/multi_3drones.yaml`) to exercise multi-agent worlds. Re-run the command with your chosen file to generate a matching screencast:
 > ```bash
-> ./scripts/run_system.sh --gui --params config/sim/mission_3drones.yaml
+> ./scripts/run_system.sh --gui --params config/sim/<your_choice>.yaml
 > ```
+
+## Screencast
+
+[![ShelfScout Multi-Drone Demo](docs/preview/multli_1drones_preview.png)](https://youtu.be/4b2F9kGbmrE)
+
+The video above shows the `multi_1drone.yaml` run; edit the params file if you want to capture a different mission before recording.
