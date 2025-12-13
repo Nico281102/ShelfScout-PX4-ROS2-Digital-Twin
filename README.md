@@ -10,7 +10,7 @@ Concise guide to the simulation workflow. Full details live in `docs/`.
 - Prerequisites and environment setup: `docs/environment_setup.md`.
 - Launch everything (multi flow, GUI):  
   ```bash
-  ./scripts/run_system.sh --gui --params config/sim/multi_1drone.yaml
+  ./scripts/run_system.sh --gui --params config/sim/multi_2drones.yaml
   ```  
   Use `--headless` on CI/SSH. Pick mission/world/agent in the params YAML. Short walkthrough and expected output: `docs/quickstart.md`.
 
