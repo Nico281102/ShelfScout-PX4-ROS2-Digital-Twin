@@ -58,7 +58,5 @@ These steps prepare the simulation stack using the multi-first flow (`scripts/ru
    ```
 4. Launch with `./scripts/run_system.sh --gui` (or `--headless` on CI/SSH). Logs land in `data/logs/` for PX4, the agent, and mission nodes. The legacy `run_ros2_system.sh` remains available but follows the old single-drone path.
 
-## Notes and Gotchas
-- Battery simulation relies on PX4 parameters pushed by `px4_param_setter` (see `config/sim/multi_1drone.yaml`); Gazebo’s battery plugin is ignored.
-- If Gazebo cannot find models it may try to download them from Fuel and stall; set `GAZEBO_MODEL_PATH` explicitly or stay online for the first run.
-- Multi-drone will require per-vehicle ports and namespaces; avoid hardcoding ports in scripts—prefer the env-driven defaults in `scripts/.env`.
+
+

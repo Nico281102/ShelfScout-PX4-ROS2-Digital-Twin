@@ -5,7 +5,7 @@ Operational notes for the PX4 SITL + Gazebo Classic stack. Focus is on the singl
 ## Simulator Basics
 - World: `worlds/overrack_indoor.world` by default (see `config/sim/default.yaml`). Models from PX4 and this repo are appended to `GAZEBO_MODEL_PATH` by the launch scripts.
 - Vehicle: `iris_opt_flow` (or another PX4 model) controlled by PX4 SITL. Keep `mission_runner.ros__parameters.gazebo_model_name` aligned with the chosen SDF.
-- Launch: `scripts/run_ros2_system.sh --gui` (or `--headless`) wraps PX4, Gazebo, the XRCE agent, and ROS 2 nodes with consistent logging in `data/logs/`.
+- Launch: `scripts/run_system.sh --gui` (or `--headless`) wraps PX4, Gazebo, the XRCE agent, and ROS 2 nodes with consistent logging in `data/logs/` (legacy: `run_ros2_system.sh`).
 
 ## Battery Simulation (no Gazebo battery plugin)
 - Gazebo’s battery plugin in the SDF is ignored; PX4’s internal SITL battery simulator is used instead.
@@ -34,3 +34,15 @@ Operational notes for the PX4 SITL + Gazebo Classic stack. Focus is on the singl
 - `data/logs/px4_sitl_default.out` — PX4 startup, parameter pushes, Offboard status, battery warnings.
 - `data/logs/micro_xrce_agent.out` — bridge health (session creation, port binding).
 - `data/logs/mission_runner.out` — mission parsing, bounds validation, fallback reasons.
+
+## Adding a custom drone model (multi-run)
+- Add the model: create `models/<name>/<name>.sdf.jinja` (you can copy from `iris_opt_flow`) and keep plugin namespaces dynamic (e.g., `px4_<idx-1>` in the camera plugin).
+- Make PX4 multi-run recognize it: edit `scripts/patches/px4_sitl_multiple_run.patched` to include `<name>` in `SUPPORTED_MODELS`; if it is an iris variant, map it in `resolve_px4_sim_model` to `gazebo-classic_iris`.
+- Ensure the template is found: `find_model_template` searches `GAZEBO_MODEL_PATH`, so place the Jinja under `models/<name>/` or as `models/<name>.sdf.jinja`.
+- Configure an entry in `config/sim/multi.yaml`: set `model: <name>`, spawn pose, `mavlink_udp_port`, a distinct `agent_cmd` port, and optional `px4_params`.
+- Run and verify with `./scripts/run_system.sh --params config/sim/multi.yaml`; check `data/logs/px4_gazebo.out` for the spawn and `ros2 topic list` for namespaced PX4 topics.
+
+### Physics vs PX4 airframe
+- PX4 uses the airframe selected by `PX4_SIM_MODEL`, not your SDF; map your model to a close family (e.g., `gazebo-classic_iris`) in `resolve_px4_sim_model` or create a new airframe in PX4 if needed.
+- The SDF must stay coherent with that airframe: motor plugins, joint names, inertias, and sensor plugins should mirror what PX4 expects; if you change prop layout or mass, update the motor constants/geometry in the Jinja.
+- Sensors in the SDF publish to topics consumed by PX4 plugins (mavlink_interface, optical flow, camera/lidar); mismatches here cause EKF/control issues.

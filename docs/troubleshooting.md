@@ -4,7 +4,7 @@
 
 **Symptoms**
 
-- `run_ros2_system.sh --gui` prints `Using: /.../iris_opt_flow.sdf` and then hangs.
+- `run_system.sh --gui` prints `Using: /.../iris_opt_flow.sdf` and then hangs.
 - No new log entries appear in `data/logs/px4_sitl_default.out`.
 
 **Context**
@@ -22,7 +22,7 @@
    ```bash
    export GAZEBO_MODEL_PATH="$SSDT_PX4_DIR/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models:$(pwd)/models:${GAZEBO_MODEL_PATH:-}"
    ```
-2. Relaunch `./scripts/run_ros2_system.sh --headless` to verify `gzserver` starts; retry `--gui` if you need the client.
+2. Relaunch `./scripts/run_system.sh --headless` to verify `gzserver` starts; retry `--gui` if you need the client.
 3. If offline, run once with network available so PX4 models are cached; after the first download they remain local.
 
 **Notes (optional)**
@@ -63,7 +63,7 @@ Place this in `PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_run.sh` after 
 
 **Context**
 
-- Single-drone simulation with `run_ros2_system.sh` on PX4 v1.14 SITL.
+- Single-drone simulation with `run_system.sh` on PX4 v1.14 SITL.
 - Battery parameters left at PX4 defaults.
 
 **Likely cause**
@@ -72,12 +72,12 @@ Place this in `PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_run.sh` after 
 
 **Fix**
 
-1. Open `config/sim/default.yaml` and tune `px4_param_setter.px4_params`:
+1. Open `config/sim/multi_1drone.yaml` (or your multi params file) and tune `px4_param_setter.px4_params`:
    - `SIM_BAT_DRAIN` and `SIM_BAT_MIN_PCT` for discharge rate.
    - `BAT1_*` (cells, voltages, capacity) to model the pack.
    - `BAT_LOW_THR`, `BAT_CRIT_THR`, `BAT_EMERGEN_THR` to align warnings.
    - Leave `COM_LOW_BAT_ACT: 0` if you want mission fallbacks to own the response.
-2. Relaunch `./scripts/run_ros2_system.sh`; PX4 does not need a rebuild for these parameters.
+2. Relaunch `./scripts/run_system.sh`; PX4 does not need a rebuild for these parameters.
 3. Check `data/logs/px4_sitl_default.out` to confirm `px4_param_setter` applied the values (search for `param set`).
 
 **Notes (optional)**
@@ -113,7 +113,7 @@ Place this in `PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_run.sh` after 
    cd "$SSDT_ROS_WS"
    colcon build --symlink-install --packages-select px4_msgs px4_ros_com
    ```
-4. Relaunch `run_ros2_system.sh`; `/fmu/out/battery_status` should now appear.
+4. Relaunch `run_system.sh`; `/fmu/out/battery_status` should now appear.
 
 ## Drone spawns off-origin (diagonal takeoff)
 

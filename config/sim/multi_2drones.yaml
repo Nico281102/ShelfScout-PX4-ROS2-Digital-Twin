@@ -24,7 +24,7 @@ run_ros2_system:
         px4_namespace: "/px4_1"
         log_dir: data/logs/drone1
         mission_runner:
-          mission_file: config/mission_drone1.yaml
+          mission_file: config/mission_drone1_north.yaml
           sim.disable_link_after_s: -1.0
         inspection_node:
           image_topic: overrack/iris/front_camera/image_raw
@@ -51,7 +51,7 @@ run_ros2_system:
         px4_namespace: "/px4_2"
         log_dir: data/logs/drone2
         mission_runner:
-          mission_file: config/mission_drone2.yaml
+          mission_file: config/mission_drone2_south.yaml
           sim.disable_link_after_s: -1.0
 
 mission_runner:

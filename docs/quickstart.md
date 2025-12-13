@@ -36,14 +36,12 @@ The system uses a three-layer configuration approach to separate hardware/simula
 ### Level 1: Simulation Configuration
 This is the entry point (passed via `--params`). It defines the world, the number of drones, their spawn points, and which mission file each drone follows.
 
-*Example (`config/sim/multi.yaml`):*
+*Example (`config/sim/multi_1drone.yaml`):*
 ```yaml
-# Esempio di configurazione multi-drone (usare con --params config/sim/multi.yaml)
 run_ros2_system:
   ros__parameters:
     world_file: worlds/overrack_indoor.world
     agent_cmd_default: MicroXRCEAgent udp4 -p 8888 -v 4 
-    # Blob YAML serializzato per evitare limiti rcl su liste di mappe
     drones_yaml: |
       - name: drone1
         namespace: px4_1
@@ -108,7 +106,6 @@ route:
     - name: A
       position: [2, 0.0, 1.0]
       hover_s: 2.0
-      yaw_deg: 180
       inspect: false
 
 
@@ -220,5 +217,12 @@ The --params flag points to a high-level simulation configuration file. This fil
 2. PX4 will initialize.
 3. The mission runner will arm the drone, take off and execute the waypoints
 4. Metrics and Logs
-   
-To stop the simulation, simply press Ctrl+C in the terminal. The script will handle the cleanup of background processes.
+  
+This same workflow is captured in the screencast below.
+
+To stop the simulation, simply press Ctrl+C in the terminal; `run_system.sh` gracefully shuts down Gazebo, PX4, the agent, and the mission node.
+
+> **Note:** the demo uses a single-drone params file, but you can point `run_system.sh` at any other YAML (e.g. `config/sim/multi.yaml`,`config/sim/multi_3drones.yaml` ) to exercise multi-agent worlds. Re-run the command with your chosen file to generate a matching screencast:
+> ```bash
+> ./scripts/run_system.sh --gui --params config/sim/mission_3drones.yaml
+> ```

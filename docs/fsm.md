@@ -68,5 +68,5 @@ flowchart TD
 
 ## Behaviors outside the mission FSM
 - PX4 link-loss failsafe is owned by PX4: if Offboard setpoints/heartbeats stop (or you simulate link loss), PX4 executes its native failsafe (`NAV_DLL_ACT` controls the behavior and can be set in the PX4 param YAML; see https://docs.px4.io/main/en/advanced_config/parameter_reference), independent of the mission FSM.
-- PX4 battery failsafe can also be left to PX4, but we force `COM_LOW_BAT_ACT=0` in our configs to prevent PX4 from overriding the mission fallback actions.
+- PX4 battery failsafe can also be left to PX4, but we force `COM_LOW_BAT_ACT=0` in our configs to prevent PX4 from overriding the mission fallback actions. (Battery simulation relies on PX4 parameters pushed by `px4_param_setter`, see `config/sim/multi_1drone.yaml`; Gazebo’s battery plugin is ignored.)
 - Torch and metrics reactions are downstream of inspection and mission_state events (`LOW_LIGHT`/`OK`/`SUSPECT`, `snapshot`) and do not drive mission state transitions.
