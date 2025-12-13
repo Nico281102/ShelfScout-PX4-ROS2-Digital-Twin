@@ -128,7 +128,7 @@ Missions that require perfectly steady captures can encode a two-step convention
 | `/overrack/mission_state` | publish | `mission_runner` | High-level FSM state changes (useful for dashboards/scripts). |
 
 Relevant ROS parameters:
-- `mission_file` (string, default `config/mission.yaml`): path to the YAML plan. Overridden via `--ros-args -p mission_file:=...` in `run_ros2_system.sh`.
+- `mission_file` (string, default `config/mission.yaml`): path to the YAML plan. Overridden via `--ros-args -p mission_file:=...` when launched by `run_system.sh` (or legacy `run_ros2_system.sh`).
 - `sim.disable_link_after_s` (float, default `-1.0`): `<0` disables link-loss simulation, `0` triggers immediately, `>0` triggers after N seconds by stopping Offboard setpoints/heartbeats so PX4 native failsafe engages.
 - `image_topic` (string): forwarded to `inspection_node` to match your camera stream.
 - `agent_cmd` (string): handled outside of ROS but documented in `.env` as `SSDT_AGENT_CMD` for consistency.

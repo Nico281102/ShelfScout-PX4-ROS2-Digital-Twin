@@ -63,6 +63,7 @@ Each entry in the `drones` list configures a single PX4 instance and its ROS 2 s
 
 **File path:** Referenced by `mission_file` in the simulation config.
 **Purpose:** Defines *how* the drone executes the task (behavior).
+For the full mission schema and FSM behavior, see `docs/mission_v1.md`.
 
 ### Schema (v1)
 
