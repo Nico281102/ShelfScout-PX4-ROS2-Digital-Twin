@@ -1,15 +1,16 @@
 # ShelfScout PX4‑ROS2 Digital Twin
-Concise guide to the simulation workflow. Full details live in `docs/`.
-Come è nato questo progetto, l'ispirazione iniziale era data dal documento [overrack-inspect](docs/px4-vision-overrack-spec-v1.pdf), poi pero si è evoluto, perchè ho voluto di mia volontà esplorare le possibilia con ROS2, questa infatti è la mia primissima esperienza in ambiente ROS2.
+Concise guide to the simulation workflow. Full details live in [docs/](docs/).
+
+**Project origin.** This started as a tiny prototype inspired by [overrack-inspect](docs/px4-vision-overrack-spec-v1.pdf); I used it as my first hands-on experiment with ROS 2 and PX4. It grew into an indoor rack-inspection digital twin: multi-drone Gazebo Classic worlds, PX4 SITL bridged via Micro XRCE-DDS, ROS 2 mission runner and YAML-driven mission/route configs you can extend.
 
 
 ## Overview
 - Indoor PX4 SITL + Gazebo Classic sandbox with ROS 2 mission runner, inspection, and metrics.
-- Architecture and flow: `docs/architecture.md`.
-- PX4 ↔ ROS 2 bridging and topic map: `docs/uxrce_dds_px4_ros_bridge.md`.
+- Architecture and flow: [Architecture](docs/architecture.md).
+- PX4 ↔ ROS 2 bridging and topic map: [ROS 2 bridge](docs/uxrce_dds_px4_ros_bridge.md).
 
 ## Quick start
-- Prerequisites and environment setup: `docs/environment_setup.md`.
+- Prerequisites and environment setup: [Environment setup](docs/environment_setup.md).
 - Launch everything (multi flow, GUI):
 ```bash
 ./scripts/run_system.sh --gui --params config/sim/multi_2drones.yaml
@@ -28,18 +29,18 @@ ShelfScout multi-drone demo in the smaller indoor world:
 Mega over-rack four-drone preset:
 [![Mega ShelfScout Multi-Drone](docs/preview/multli_4drones_preview.png)](https://youtu.be/LL4VuSNlRJE)
 
-For more, follow the walkthrough: `docs/quickstart.md`.
+For more, follow the walkthrough: [Quickstart](docs/quickstart.md).
 
 ## Configuration
-- Simulation params (world, agents, drones): `config/sim/*.yaml` — structure described in `docs/mission_language.md`.
-- Mission + route schema and FSM behavior: `docs/mission_v1.md` (referenced by `docs/mission_language.md`).
+- Simulation params (world, agents, drones): `config/sim/*.yaml` — structure described in [Mission language](docs/mission_language.md).
+- Mission and route schema and FSM behavior: [Mission v1](docs/mission_v1.md) (referenced by [Mission language](docs/mission_language.md)).
 
 ## Developer docs
-- FSM, launch flow, per-node notes: `docs/fsm.md`.
-- PX4/Gazebo models, plugins, and custom drone notes: see `docs/architecture.md` (models/airframes) and `docs/troubleshooting.md` (multi-drone/custom model pitfalls).
+- FSM, launch flow, per-node notes: [FSM](docs/fsm.md).
+- PX4/Gazebo models, plugins, and custom drone notes: see [Architecture](docs/architecture.md) (models/airframes) and [Troubleshooting](docs/troubleshooting.md) (multi-drone/custom model pitfalls).
 
 ## Troubleshooting
-- Common issues and fixes: `docs/troubleshooting.md`.
+- Common issues and fixes: [Troubleshooting](docs/troubleshooting.md).
 
 ## How AI was used in this project
 - Assisted with heavy refactors such as this README overhaul.
