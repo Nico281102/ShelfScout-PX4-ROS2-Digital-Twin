@@ -8,7 +8,6 @@ route:
     - name: A
       position: [2, 0.0, 1.0]
       hover_s: 2.0
-      yaw_deg: 180
       inspect: false
 
 

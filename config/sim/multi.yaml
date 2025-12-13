@@ -8,9 +8,8 @@ run_ros2_system:
       - name: drone1
         namespace: px4_1
         model: iris_opt_flow
-        spawn: {x: 1.5, y: 0.5, z: 0.3, yaw: 1.57}
+        spawn: {x: 1.5, y: 0.5, z: 0.3, yaw: 0.0}
         mavlink_udp_port: 14541
-        agent_cmd: "MicroXRCEAgent udp4 -p 8888 -v 4"
         px4_params:
           SIM_BAT_DRAIN: 120.0
           SIM_BAT_MIN_PCT: 0.03
@@ -38,7 +37,6 @@ run_ros2_system:
         model: iris_opt_flow
         spawn: {x: -1.5, y: -0.5, z: 0.3, yaw: 0.0}
         mavlink_udp_port: 14542
-        agent_cmd: "MicroXRCEAgent udp4 -p 8889 -v 4"
         px4_params:
           SIM_BAT_DRAIN: 54.0
           SIM_BAT_MIN_PCT: 0.03
