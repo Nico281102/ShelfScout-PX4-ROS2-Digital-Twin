@@ -12,6 +12,8 @@ scripts/data/images
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
+ros2_ws/src/px4_msgs/
+ros2_ws/src/px4_ros_com/
 
 # PX4 build outputs
 PX4/PX4-Autopilot/build/
