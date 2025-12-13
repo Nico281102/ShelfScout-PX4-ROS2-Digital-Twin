@@ -24,7 +24,7 @@ run_ros2_system:
         log_dir: data/logs/drone_north
         mission_runner:
           mission_file: config/mission_drone1_north.yaml
-          sim.disable_link_after_s: -1.0
+          sim.disable_link_after_s: 45.0
         inspection_node:
           image_topic: overrack/iris/front_camera/image_raw
           low_light_threshold: 90.0

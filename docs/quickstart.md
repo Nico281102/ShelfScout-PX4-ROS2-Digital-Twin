@@ -218,17 +218,21 @@ The --params flag points to a high-level simulation configuration file. This fil
 3. The mission runner will arm the drone, take off and execute the waypoints
 4. Metrics and Logs
   
-This same workflow is captured in the screencast below.
+This simulation is captured in the screencast below.
+[![ShelfScout Drone Demo](preview/multli_1drone_preview.png)](https://youtu.be/4b2F9kGbmrE)
 
 To stop the simulation, simply press Ctrl+C in the terminal; `run_system.sh` gracefully shuts down Gazebo, PX4, the agent, and the mission node.
 
-> **Note:** the demo uses a single-drone params file, but you can point `run_system.sh` at any other YAML (e.g. `config/sim/multi.yaml`, `config/sim/multi_3drones.yaml`) to exercise multi-agent worlds. Re-run the command with your chosen file to generate a matching screencast:
+> **Note:** the demo uses a single-drone params file, but you can point `run_system.sh` at any other YAML (i.e. `config/sim/multi.yaml`,`config/sim/multi_3drones.yaml` ) to exercise multi-agent worlds. Re-run the command with your chosen file to generate a matching screencast:
 > ```bash
-> ./scripts/run_system.sh --gui --params config/sim/<your_choice>.yaml
+> ./scripts/run_system.sh --gui --params config/sim/mission_3drones.yaml
 > ```
 
-## Screencast
+[![ShelfScout 3-Drones Demo](preview/multli_3drones_preview.png)](https://youtu.be/CCuXt1dZ7GA)
+This video shows the `multi_3drones.yaml` run: three PX4 instances taking off, executing their routes, and landing in sync.
 
-[![ShelfScout Multi-Drone Demo](docs/preview/multli_1drones_preview.png)](https://youtu.be/4b2F9kGbmrE)
+**What to notice**
+- The mission runner keeps each drone in its own namespace (`px4_1`, `px4_2`, `px4_3`) with separate logs, cameras, and torch controllers.
+- If `drone1` loses the link (e.g., `sim.disable_link_after_s` elapses), the fallback kicks in: Offboard setpoints stop, PX4’s native failsafe engages, and the mission runner detects the missing telemetry via `/fmu/out/vehicle_local_position`.
+- The UI shows how the stack scales, proving the architecture can handle N drones with per-instance params.
 
-The video above shows the `multi_1drone.yaml` run; edit the params file if you want to capture a different mission before recording.

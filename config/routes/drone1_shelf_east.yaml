@@ -10,25 +10,25 @@ route:
       inspect: false
 
     - name: east_top
-      position: [2.0, 3.4, 1.2]
+      position: [2.5, 3.4, 1.2]
       yaw_deg: 180
       inspect: true
       action: snapshot
 
     - name: east_mid_upper
-      position: [2.0, 1.5, 1.2]
+      position: [2.5, 1.5, 1.2]
       yaw_deg: 180
       inspect: true
       action: snapshot
 
     - name: east_mid_lower
-      position: [2.0, -1.5, 1.2]
+      position: [2.5, -1.5, 1.2]
       yaw_deg: 180
       inspect: true
       action: snapshot
 
     - name: east_bottom
-      position: [2.0, -3.4, 1.2]
+      position: [2.5, -3.4, 1.2]
       yaw_deg: 180
       inspect: true
       action: snapshot
