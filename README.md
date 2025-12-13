@@ -24,3 +24,9 @@ Concise guide to the simulation workflow. Full details live in `docs/`.
 
 ## Troubleshooting
 - Common issues and fixes: `docs/troubleshooting.md`.
+
+## How AI was used in this project
+- Assisted with major README refactors so the overview/quick start now points readers to the right docs.
+- Helped spot subtle mission/EKF inconsistencies during multi-drone runs by surfacing telemetry logs and explaining the spawn/yaw gating.
+- Generated draft documentation pulls (this very intro, mission language pointers, etc.) that you later edited and polished.
+- Created cover art/thumbnail ideas for the screencast and quickstart sections to keep the tutorial story cohesive.
