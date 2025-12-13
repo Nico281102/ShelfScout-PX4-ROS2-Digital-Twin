@@ -377,7 +377,7 @@ Keep a transparent visual:
 
 ## Multi-drone startup pitfalls
 
-Running multiple PX4 instances introduces extra failure modes beyond the single-drone flow. The symptoms below map directly to the fixes from `docs/multidrone_migration.md` so you can recover in minutes.
+Running multiple PX4 instances introduces extra failure modes beyond the single-drone flow. The symptoms below capture the fixes we validated during the multi-drone migration so you can recover in minutes.
 
 #### Gazebo template lookup ignores repo models
 *Symptoms:* PX4 complains `TemplateNotFound` for `iris_opt_flow`, and Gazebo never spawns the drone.  
@@ -412,19 +412,6 @@ Running multiple PX4 instances introduces extra failure modes beyond the single-
 2) Ensure `GAZEBO_MODEL_PATH` includes the repo `models/` directory so PX4 can find the template.  
 3) Extend PX4’s `sitl_multiple_run.sh` whitelist to include `<name>` (or map it to `gazebo-classic_iris` if it’s an iris variant).  
 4) Configure the airframe mapping: set `PX4_SIM_MODEL` (or `resolve_px4_sim_model`) to a compatible PX4 airframe so motor/sensor expectations match your SDF.  
-5) Add an entry to `config/sim/multi.yaml` with `model: <name>`, spawn pose, unique `mavlink_udp_port`, unique XRCE agent port, and optional per-drone `px4_params`.  
-6) Run `./scripts/run_system.sh --params config/sim/multi.yaml` and check `data/logs/px4_gazebo.out` plus `ros2 topic list` to confirm the model spawned and the namespaced PX4 topics are present.
-
-## uORB ↔ DDS mapping updates
-
-When adding new uORB topics (e.g., for multi-drone coordination), update the mapping so ROS 2 sees them:
-
-1) Edit `src/modules/uxrce_dds_client/dds_topics.yaml` in your PX4 tree and list the new publications/subscriptions.  
-2) Rebuild PX4 to regenerate the uXRCE client code: `make px4_sitl_default`.  
-3) Rebuild the ROS messages/bridge so DDS picks up the new types:  
-   ```bash
-   cd "$SSDT_ROS_WS"
-   colcon build --symlink-install --packages-select px4_msgs px4_ros_com
-   ```  
-4) Relaunch `run_system.sh` and verify the new `/fmu/out/*` or `/fmu/in/*` topics appear on the ROS graph.
+5) Add an entry to `config/sim/<simulation_file>.yaml` with `model: <name>`, spawn pose, unique `mavlink_udp_port`, unique XRCE agent port, and optional per-drone `px4_params`.  
+6) Run `./scripts/run_system.sh --params config/sim/<simulation_file>.yaml` and check `data/logs/px4_gazebo.out` plus `ros2 topic list` to confirm the model spawned and the namespaced PX4 topics are present.
 

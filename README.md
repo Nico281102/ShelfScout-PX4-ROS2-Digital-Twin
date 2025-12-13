@@ -10,24 +10,32 @@ Come è nato questo progetto, l'ispirazione iniziale era data dal documento [ove
 
 ## Quick start
 - Prerequisites and environment setup: `docs/environment_setup.md`.
-- Launch everything (multi flow, GUI):  
-  ```bash
-  ./scripts/run_system.sh --gui --params config/sim/multi_2drones.yaml
-  ```  
-  Use `--headless` on CI/SSH. Pick mission/world/agent in the params YAML.
+- Launch everything (multi flow, GUI):
+```bash
+./scripts/run_system.sh --gui --params config/sim/multi_2drones.yaml
+```
+- For the mega indoor four-drone preset:
+ ```bash
+ ./scripts/run_system.sh --gui --params config_mega_overrack_indoor/sim/multi_4drones.yaml
+ ```
+- Use `--headless` on CI/SSH. Pick mission/world/agent in the params YAML.
 
 ## Expected output
 
+ShelfScout multi-drone demo in the smaller indoor world:
 [![ShelfScout Multi-Drone Demo](docs/preview/multli_2drones_preview.png)](https://youtu.be/KUdoRD7VAOU)
 
-Watch the screencast and follow the walkthrough: `docs/quickstart.md`.
+Mega over-rack four-drone preset:
+[![Mega ShelfScout Multi-Drone](docs/preview/multli_4drones_preview.png)](https://youtu.be/LL4VuSNlRJE)
+
+For more, follow the walkthrough: `docs/quickstart.md`.
 
 ## Configuration
 - Simulation params (world, agents, drones): `config/sim/*.yaml` — structure described in `docs/mission_language.md`.
 - Mission + route schema and FSM behavior: `docs/mission_v1.md` (referenced by `docs/mission_language.md`).
 
 ## Developer docs
-- FSM, launch flow, per-node notes: `docs/fsm.md`, `docs/developer_guide.md`.
+- FSM, launch flow, per-node notes: `docs/fsm.md`.
 - PX4/Gazebo models, plugins, and custom drone notes: see `docs/architecture.md` (models/airframes) and `docs/troubleshooting.md` (multi-drone/custom model pitfalls).
 
 ## Troubleshooting
