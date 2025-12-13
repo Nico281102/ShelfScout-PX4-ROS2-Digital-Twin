@@ -1,0 +1,102 @@
+route:
+  name: north_west_inspection
+  default_altitude_m: 1.0
+  default_hover_s: 2.0
+
+  steps:
+
+    - name: A
+      position: [-4.0, 0.0, 1.0]
+      hover_s: 2.0
+      inspect: false
+
+
+    - name: B_arrival
+      position: [-4.0, 4.0, 1.0]
+      yaw_deg: 180
+      inspect: false
+      hover_s: 5.0
+
+
+    - name: BC_arrival # distance of 0.8
+      position: [-5.2, 4.0, 1.5]
+      yaw_deg: 180
+      inspect: false
+      hover_s: 5.0
+
+    - name: BC_photo
+      position: [-5.2, 4.0, 1.5]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+
+    - name: BC_arrival_down # distance of 0.8
+      position: [-5.2, 4.0, 0.5]
+      yaw_deg: 180
+      inspect: false
+      hover_s: 5.0
+
+    - name: BC_photo_down
+      position: [-5.2, 4.0, 0.5]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: C_arrival_down
+      position: [-6.0, 4.0, 0.5]
+      yaw_deg: 180
+      inspect: false
+      hover_s: 5.0
+
+    - name: C_photo_down
+      position: [-6.0, 4.0, 0.5]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: C_arrival
+      position: [-6.0, 4.0, 1.5]
+      yaw_deg: 180
+      inspect: false
+      hover_s: 5.0
+
+    - name: C_photo
+      position: [-6.0, 4.0, 1.5]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: CD_arrival
+      position: [-6.8, 4.0, 1.5]
+      yaw_deg: 180
+      inspect: false
+      hover_s: 5.0
+
+    - name: CD_photo
+      position: [-6.8, 4.0, 1.5]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: CD_arrival_down
+      position: [-6.8, 4.0, 0.5]
+      yaw_deg: 180
+      inspect: false
+      hover_s: 5.0
+
+    - name: CD_photo_down
+      position: [-6.8, 4.0, 0.5]
+      yaw_deg: 180
+      inspect: true
+      action: snapshot
+
+    - name: D
+      position: [-8.0, 4.0, 1.5]
+      yaw_deg: 180
+      inspect: true
+
+    - name: H
+      position: [-9.0, 1.5, 1.5]
+      yaw_deg: 180
+      inspect: false

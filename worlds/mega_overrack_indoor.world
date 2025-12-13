@@ -1,0 +1,282 @@
+<?xml version="1.0"?>
+<!--
+  Mega Over-Rack Indoor World (Gazebo Classic / SDF 1.6)
+
+  - Same as overrack_indoor, but doubled in X:
+    room size: 24m x 10m (was 12m x 10m)
+  - Two identical overrack setups:
+      LEFT  copy centered at x = -6 (offset -6)
+      RIGHT copy centered at x = +6 (offset +6)
+  - Same boxes/shelves arrangement, same lights duplicated per half
+-->
+
+<sdf version="1.6">
+  <world name="mega_overrack_indoor">
+
+    <!-- Publishes /gazebo/model_states and /gazebo/link_states to ROS2 -->
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros>
+        <namespace>/gazebo</namespace>
+      </ros>
+    </plugin>
+
+    <model name="origin_marker">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <gravity>0 0 -9.81</gravity>
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.8 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <gui fullscreen="0">
+      <camera name="overrack_default">
+        <!-- adjusted to see the whole 24m room -->
+        <pose>0.5 -10 16.0 0 0.89 1.57</pose>
+        <view_controller>fps</view_controller>
+        <!-- <track_visual>iris_opt_flow::base_link</track_visual> -->
+      </camera>
+    </gui>
+
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_update_rate>250</real_time_update_rate>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Indoor: keep sun disabled -->
+    <!--
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Room (DOUBLED in X): 24m x 10m, 3m tall -->
+    <model name="room">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+
+      <!-- Roof -->
+      <link name="roof">
+        <pose>0 0 3.0 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box>
+              <size>24 10 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box>
+              <size>24 10 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Gray</name>
+            </script>
+            <transparency>0.7</transparency>
+            <ambient>1 1 1 0.1</ambient>
+            <diffuse>1 1 1 0.1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <!-- Walls -->
+      <link name="wall_north">
+        <pose>0 5 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>24 0.1 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>24 0.1 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
+          </material>
+        </visual>
+      </link>
+
+      <link name="wall_south">
+        <pose>0 -5 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>24 0.1 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>24 0.1 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
+          </material>
+        </visual>
+      </link>
+
+      <link name="wall_east">
+        <pose>12 0 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
+          </material>
+        </visual>
+      </link>
+
+      <link name="wall_west">
+        <pose>-12 0 1.5 0 0 0</pose>
+        <collision name="col">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis">
+          <geometry>
+            <box><size>0.1 10 3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ========================================================= -->
+    <!-- DUPLICATED SETUPS: LEFT (x=-6) and RIGHT (x=+6)            -->
+    <!-- ========================================================= -->
+
+    <!-- ---------------- LEFT SETUP (offset -6) ---------------- -->
+    <!-- Two rack rows -->
+    <include>
+      <uri>model://overrack_shelf</uri>
+      <name>rack_row_a_L</name>
+      <pose>-6 -2.5 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_shelf</uri>
+      <name>rack_row_b_L</name>
+      <pose>-6 2.5 0 0 0 0</pose>
+    </include>
+
+    <!-- Boxes on shelves -->
+    <include><uri>model://overrack_box</uri><name>box_a1_L</name><pose>-6.8 -2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a2_L</name><pose>-6.0 -2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a3_L</name><pose>-5.2 -2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a4_L</name><pose>-6.8 -2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a5_L</name><pose>-6.0 -2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a6_L</name><pose>-5.2 -2.6 1.55 0 0 0</pose></include>
+
+    <include><uri>model://overrack_box</uri><name>box_b1_L</name><pose>-6.8 2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b2_L</name><pose>-6.0 2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b3_L</name><pose>-5.2 2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b4_L</name><pose>-6.8 2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b5_L</name><pose>-6.0 2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b6_L</name><pose>-5.2 2.6 1.55 0 0 0</pose></include>
+
+    <!-- Lights (duplicated, shifted by -6) -->
+    <light type="spot" name="neon_L_row1_1"><pose>-8.0 4 2.9 -0.50 -0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_L_row1_2"><pose>-6.0 4 2.9 -0.80 0 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_L_row1_3"><pose>-4.0 4 2.9 -0.50 0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+
+    <light type="spot" name="neon_L_row2_1"><pose>-8.0 -4 2.9 0.50 -0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_L_row2_2"><pose>-6.0 -4 2.9 0.80 0 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_L_row2_3"><pose>-4.0 -4 2.9 0.50 0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+
+    <!-- ---------------- RIGHT SETUP (offset +6) ---------------- -->
+    <!-- Two rack rows -->
+    <include>
+      <uri>model://overrack_shelf</uri>
+      <name>rack_row_a_R</name>
+      <pose>6 -2.5 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://overrack_shelf</uri>
+      <name>rack_row_b_R</name>
+      <pose>6 2.5 0 0 0 0</pose>
+    </include>
+
+    <!-- Boxes on shelves -->
+    <include><uri>model://overrack_box</uri><name>box_a1_R</name><pose>5.2 -2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a2_R</name><pose>6.0 -2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a3_R</name><pose>6.8 -2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a4_R</name><pose>5.2 -2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a5_R</name><pose>6.0 -2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_a6_R</name><pose>6.8 -2.6 1.55 0 0 0</pose></include>
+
+    <include><uri>model://overrack_box</uri><name>box_b1_R</name><pose>5.2 2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b2_R</name><pose>6.0 2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b3_R</name><pose>6.8 2.6 0.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b4_R</name><pose>5.2 2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b5_R</name><pose>6.0 2.6 1.55 0 0 0</pose></include>
+    <include><uri>model://overrack_box</uri><name>box_b6_R</name><pose>6.8 2.6 1.55 0 0 0</pose></include>
+
+    <!-- Lights (duplicated, shifted by +6) -->
+    <light type="spot" name="neon_R_row1_1"><pose>4.0 4 2.9 -0.50 -0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_R_row1_2"><pose>6.0 4 2.9 -0.80 0 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_R_row1_3"><pose>8.0 4 2.9 -0.50 0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+
+    <light type="spot" name="neon_R_row2_1"><pose>4.0 -4 2.9 0.50 -0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_R_row2_2"><pose>6.0 -4 2.9 0.80 0 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+    <light type="spot" name="neon_R_row2_3"><pose>8.0 -4 2.9 0.50 0.40 0</pose><diffuse>0.5 0.5 0.5 1</diffuse><specular>0.2 0.2 0.2 1</specular><attenuation><range>25</range><constant>0.5</constant><linear>0.02</linear><quadratic>0.005</quadratic></attenuation><spot><inner_angle>0.6</inner_angle><outer_angle>1.0</outer_angle><falloff>0.3</falloff></spot></light>
+
+    <!-- Spawn (center of the mega room) -->
+    <model name="wp_spawn_floor">
+      <static>true</static>
+      <pose>0.0 0.0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="vis">
+          <geometry>
+            <cylinder>
+              <radius>0.07</radius>
+              <length>0.01</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.8 0.2 1</ambient>
+            <diffuse>0.2 0.8 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

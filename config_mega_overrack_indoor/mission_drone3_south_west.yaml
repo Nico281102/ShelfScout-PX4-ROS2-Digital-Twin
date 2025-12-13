@@ -1,0 +1,13 @@
+api_version: 1
+
+route_file: routes/drone3_shelf_south_west.yaml
+
+inspection:
+  enable: true
+  timeout_s: 5.0
+
+fallback:
+  battery_warning: ["return_home"]
+  battery_critical: ["land"]
+
+return_home_and_land_on_finish: true

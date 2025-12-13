@@ -20,7 +20,7 @@ Come è nato questo progetto, l'ispirazione iniziale era data dal documento [ove
  ```
 - Use `--headless` on CI/SSH. Pick mission/world/agent in the params YAML.
 
-## Expected output
+### Expected output
 
 ShelfScout multi-drone demo in the smaller indoor world:
 [![ShelfScout Multi-Drone Demo](docs/preview/multli_2drones_preview.png)](https://youtu.be/KUdoRD7VAOU)
