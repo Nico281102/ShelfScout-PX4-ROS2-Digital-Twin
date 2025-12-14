@@ -80,7 +80,8 @@ flowchart LR
 - **Micro XRCE-DDS Agent**: either installed system-wide or referenced through `MICRO_XRCE_AGENT_DIR`. `scripts/run_system.sh` spawns it with the command supplied in `config/sim/multi_1drone.yaml` / `config/sim/multi.yaml`.
 - **ROS 2 Workspace (`ros2_ws`)**: houses `px4_msgs`, `px4_ros_com`, and `overrack_mission`. After sourcing `ros2_ws/install/setup.bash`, any ROS 2 node can interact with PX4 topics using the shared message definitions.
 
-## PX4-facing ROS 2 nodes
+## Why we don’t use a MAVSDK backend
+
 PX4 + MAVSDK is a good option when you have a single process controlling one vehicle in a relatively simple way (manual control, missions, basic telemetry). In that setup, one MAVSDK client owns the MAVLink connection and does everything: reads telemetry, sends commands, updates parameters.
 
 In a system like OverRack Scan, however, the autopilot must interact with many independent processes (mission runner, metrics, inspection, future GUI, fleet manager, …). If each process opened its own MAVSDK connection to the drone, PX4 would have to handle multiple MAVLink sessions, multiple heartbeats and potentially conflicting commands, which is fragile and hard to debug.
@@ -105,6 +106,14 @@ DDS/ROS 2 already solves most of the plumbing: it provides a native publish/subs
 - MAVSDK/MAVLink only for parameter management and special cases where direct MAVLink access is strictly required
 
 In other words: building a MAVSDK backend would mean re-implementing a middleware that DDS already gives us “for free”, with better scalability and less maintenance.
+
+## Additional notes: DDS typing, sensor streaming, and high-frequency telemetry
+
+DDS/ROS 2 enforces strong typing: every topic has an IDL-defined message type with generated (de)serializers, so `/fmu/out/vehicle_local_position`, `/fmu/out/vehicle_status`, `/fmu/out/battery_status`, and all `/fmu/in/*` commands keep the same structure across PX4, the Micro XRCE Agent, and every ROS 2 node. In a multi-process system (mission runner, metrics, inspection, GUI, …) this guarantees compatibility and prevents silent runtime mismatches.
+
+PX4’s uXRCE-DDS client + Micro XRCE Agent are tuned for high-rate telemetry. They use compact CDR + UDP, statically allocated PX4 buffers, and `BEST_EFFORT` QoS so PX4 can publish at 100–400 Hz without unbounded queues. Samples are simply dropped when a subscriber lags, which is the desired behavior in a real-time control loop.
+
+MAVLink was never designed for sustained, high-bandwidth sensor streams (depth images, raw/high-res frames, multi-camera rigs). Its image transports rely on JPEG fragments or vendor extensions, making pipelines brittle and incompatible across simulators/hardware. ROS 2 instead offers native `sensor_msgs/Image` + `CameraInfo`, zero-copy-friendly paths, and close integration with Gazebo/Ignition camera plugins, so the perception stack stays stable even when you swap hardware or simulators.
 
 ## Bridge Lifecycle
 1. `scripts/launch_px4_gazebo_multi.sh` starts PX4 with the uXRCE-DDS client enabled so PX4 opens XRCE sessions toward the agent.
