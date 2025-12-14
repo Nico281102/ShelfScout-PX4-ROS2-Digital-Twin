@@ -4,6 +4,8 @@ Concise guide to the simulation workflow. Full details live in [docs/](docs/).
 **Project origin.** This started as a tiny prototype inspired by [overrack-inspect](docs/px4-vision-overrack-spec-v1.pdf); I used it as my first hands-on experiment with ROS 2 and PX4. It grew into an indoor rack-inspection digital twin: multi-drone Gazebo Classic worlds, PX4 SITL bridged via Micro XRCE-DDS, ROS 2 mission runner and YAML-driven mission/route configs you can extend.
 
 
+- Before you begin: get the essentials on PX4, Gazebo, and ROS 2/DDS → [Foundations](docs/foundations.md)
+
 ## Overview
 - Indoor PX4 SITL + Gazebo Classic sandbox with ROS 2 mission runner, inspection, and metrics.
 - Architecture and flow: [Architecture](docs/architecture.md).

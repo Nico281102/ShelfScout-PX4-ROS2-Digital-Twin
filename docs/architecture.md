@@ -4,6 +4,8 @@
 
 OverRack Scan runs PX4 SITL inside a Gazebo Classic world and drives it with ROS 2 nodes. A Micro XRCE-DDS bridge keeps PX4 and ROS 2 in sync; the bridge internals live in `docs/uxrce_dds_px4_ros_bridge.md`. The focus here is how the project is structured and how the pieces are wired together for the single-drone pipeline. (we need to abstract)
 
+**Read this first:** if you need a conceptual overview of PX4, Gazebo, and ROS 2/DDS before diving deeper, start with [docs/foundations.md](docs/foundations.md).
+
 ```mermaid
 flowchart LR
     %% ---------------------------------------------------------

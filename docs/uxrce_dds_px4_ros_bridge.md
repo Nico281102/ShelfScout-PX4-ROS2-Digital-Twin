@@ -107,13 +107,60 @@ DDS/ROS 2 already solves most of the plumbing: it provides a native publish/subs
 
 In other words: building a MAVSDK backend would mean re-implementing a middleware that DDS already gives us “for free”, with better scalability and less maintenance.
 
-## Additional notes: DDS typing, sensor streaming, and high-frequency telemetry
+### Additional notes: DDS typing, sensor streaming, and high-frequency telemetry
 
-DDS/ROS 2 enforces strong typing: every topic has an IDL-defined message type with generated (de)serializers, so `/fmu/out/vehicle_local_position`, `/fmu/out/vehicle_status`, `/fmu/out/battery_status`, and all `/fmu/in/*` commands keep the same structure across PX4, the Micro XRCE Agent, and every ROS 2 node. In a multi-process system (mission runner, metrics, inspection, GUI, …) this guarantees compatibility and prevents silent runtime mismatches.
+**DDS is strongly typed**
 
-PX4’s uXRCE-DDS client + Micro XRCE Agent are tuned for high-rate telemetry. They use compact CDR + UDP, statically allocated PX4 buffers, and `BEST_EFFORT` QoS so PX4 can publish at 100–400 Hz without unbounded queues. Samples are simply dropped when a subscriber lags, which is the desired behavior in a real-time control loop.
+ROS 2/DDS enforces strong typing: every topic has a fixed, IDL-defined message type.
+This guarantees:
 
-MAVLink was never designed for sustained, high-bandwidth sensor streams (depth images, raw/high-res frames, multi-camera rigs). Its image transports rely on JPEG fragments or vendor extensions, making pipelines brittle and incompatible across simulators/hardware. ROS 2 instead offers native `sensor_msgs/Image` + `CameraInfo`, zero-copy-friendly paths, and close integration with Gazebo/Ignition camera plugins, so the perception stack stays stable even when you swap hardware or simulators.
+- code-generated serializers and deserializers
+- unambiguous message structure
+- automatic incompatibility detection between publishers and subscribers
+
+Because PX4 exposes uORB messages as DDS topics, strong typing ensures that the
+structure of vehicle_local_position, vehicle_status, battery_status, and
+all /fmu/in/* command topics remains consistent across PX4, the Micro XRCE-DDS
+agent, and all ROS 2 nodes. This is essential in a multi-process system:
+mission runner, metrics, inspection, and GUI nodes can all subscribe to the same
+topics safely without risking runtime mismatches or silent failures.
+
+**High-frequency telemetry with low overhead**
+
+The PX4 uXRCE-DDS client and the Micro XRCE Agent are optimized for real-time
+telemetry and typically use:
+
+- compact CDR serialization
+- UDP transport
+- statically allocated buffers on the PX4 side
+- BEST_EFFORT QoS for high-rate data streams
+
+This configuration allows PX4 to publish telemetry at 100–400 Hz with minimal
+CPU overhead and without unbounded message queues.
+BEST_EFFORT ensures that PX4 never accumulates stale data: if a subscriber
+cannot keep up, samples are simply dropped, which is the correct behavior in a
+real-time control system.
+
+**Why cameras work better in ROS 2 than in MAVLink**
+
+MAVLink is a vehicle control and telemetry protocol; it is not designed for
+high-bandwidth sensor streaming. While image transport over MAVLink exists, it
+is not suitable for sustained transmission of:
+
+- depth images
+- raw or high-resolution frames
+- real-time machine vision pipelines
+- multi-camera setups
+MAVLink does not define a native image message type, so implementations either
+tunnel JPEG fragments or rely on vendor-specific extensions. As a result,
+camera pipelines over MAVLink are brittle, bandwidth-limited, and incompatible
+across simulators and hardware.
+ROS 2 instead provides native message types (sensor_msgs/Image,
+CameraInfo), efficient memory handling (including zero-copy-capable paths),
+and direct integration with Gazebo/Ignition camera plugins and vision
+frameworks. The perception pipeline remains unchanged even if the underlying
+camera hardware or simulator changes, as long as a ROS 2 driver is available — a
+level of modularity that MAVLink does not provide.
 
 ## Bridge Lifecycle
 1. `scripts/launch_px4_gazebo_multi.sh` starts PX4 with the uXRCE-DDS client enabled so PX4 opens XRCE sessions toward the agent.
