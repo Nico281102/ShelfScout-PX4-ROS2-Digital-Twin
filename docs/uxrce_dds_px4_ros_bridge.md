@@ -14,12 +14,15 @@ flowchart LR
 
 
     subgraph Bridge["Micro XRCE-DDS Agent"]
-        AGENT[MicroXRCEAgent\nudp4 -p 8888]
+        AGENT[MicroXRCEAgent
+        udp4 -p 8888]
     end
 
     subgraph ROS2["ROS 2 (Fast DDS)"]
         RCL[Fast DDS graph]
-        NODES[mission_runner\ninspection_node\nmetrics_node]
+        NODES[mission_runner
+        inspection_node
+        metrics_node]
         RCL --> NODES
         NODES --> RCL
     end
@@ -38,18 +41,23 @@ The multi path keeps a single agent and multiple PX4 clients, while ROS 2 nodes 
 ```mermaid
 flowchart LR
     subgraph Sim["Gazebo Classic + PX4 SITL (multi)"]
-        PX41["PX4 SITL #1\n(uXRCE client, px4_instance=1 → SYSID=2)"]
-        PX42["PX4 SITL #2\n(uXRCE client, px4_instance=2 → SYSID=3)"]
+        PX41["PX4 SITL #1
+        (uXRCE client, px4_instance=1 → SYSID=2)"]
+        PX42["PX4 SITL #2
+        (uXRCE client, px4_instance=2 → SYSID=3)"]
         PX41 --- PX42
     end
 
     subgraph Bridge["Micro XRCE-DDS Agent"]
-        AGENT[MicroXRCEAgent\nudp4 -p 8888]
+        AGENT[MicroXRCEAgent
+        udp4 -p 8888]
     end
 
     subgraph ROS2["ROS 2 (Fast DDS)"]
-        N1["mission_runner / inspection / metrics\nns=px4_1 (vehicle_ns)"]
-        N2["mission_runner / inspection / metrics\nns=px4_2 (vehicle_ns)"]
+        N1["mission_runner / inspection / metrics
+        ns=px4_1 (vehicle_ns)"]
+        N2["mission_runner / inspection / metrics
+        ns=px4_2 (vehicle_ns)"]
     end
 
     PX41 -- XRCE session (UDP) --> AGENT
