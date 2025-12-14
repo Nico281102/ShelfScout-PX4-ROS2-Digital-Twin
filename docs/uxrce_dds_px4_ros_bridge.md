@@ -80,6 +80,32 @@ flowchart LR
 - **Micro XRCE-DDS Agent**: either installed system-wide or referenced through `MICRO_XRCE_AGENT_DIR`. `scripts/run_system.sh` spawns it with the command supplied in `config/sim/multi_1drone.yaml` / `config/sim/multi.yaml`.
 - **ROS 2 Workspace (`ros2_ws`)**: houses `px4_msgs`, `px4_ros_com`, and `overrack_mission`. After sourcing `ros2_ws/install/setup.bash`, any ROS 2 node can interact with PX4 topics using the shared message definitions.
 
+## PX4-facing ROS 2 nodes
+PX4 + MAVSDK is a good option when you have a single process controlling one vehicle in a relatively simple way (manual control, missions, basic telemetry). In that setup, one MAVSDK client owns the MAVLink connection and does everything: reads telemetry, sends commands, updates parameters.
+
+In a system like OverRack Scan, however, the autopilot must interact with many independent processes (mission runner, metrics, inspection, future GUI, fleet manager, …). If each process opened its own MAVSDK connection to the drone, PX4 would have to handle multiple MAVLink sessions, multiple heartbeats and potentially conflicting commands, which is fragile and hard to debug.
+
+The usual workaround is to introduce a MAVSDK backend:
+
+- a single process that owns the MAVLink link to PX4
+- it reads all telemetry and exposes it to other components via some local API (gRPC, REST, custom topics, …)
+- it arbitrates commands coming from multiple clients and decides what to actually send to PX4
+
+At that point, the backend has to:
+
+- fan-out telemetry to many consumers
+- fan-in commands from many producers
+- implement its own queuing, arbitration and safety rules
+
+In practice, this turns the MAVSDK backend into a homemade message bus and a single point of failure that must be designed, tested and maintained over time.
+
+DDS/ROS 2 already solves most of the plumbing: it provides a native publish/subscribe bus where PX4 exposes `/fmu/in/*` and `/fmu/out/*`, any number of ROS 2 nodes can subscribe or publish, and discovery, fan-out, QoS and other DDS services happen in the middleware. Command arbitration and semantic conflict resolution remain the responsibility of the application layer (e.g., the mission runner, fallback handlers, metrics, inspection, etc.), so we avoid rebuilding that logic inside a bespoke MAVSDK backend. For this reason, OverRack Scan uses:
+
+- DDS/ROS 2 for all telemetry and setpoints (`/px4_n/fmu/*` topics)
+- MAVSDK/MAVLink only for parameter management and special cases where direct MAVLink access is strictly required
+
+In other words: building a MAVSDK backend would mean re-implementing a middleware that DDS already gives us “for free”, with better scalability and less maintenance.
+
 ## Bridge Lifecycle
 1. `scripts/launch_px4_gazebo_multi.sh` starts PX4 with the uXRCE-DDS client enabled so PX4 opens XRCE sessions toward the agent.
 2. `scripts/run_system.sh` launches the agent with the command from `config/sim/multi_1drone.yaml` or `config/sim/multi.yaml` (`run_ros2_system.ros__parameters.agent_cmd_default`) and tails its output to `data/logs/micro_xrce_agent.out`.

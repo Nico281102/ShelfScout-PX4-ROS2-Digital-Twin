@@ -127,9 +127,11 @@ flowchart TB
     Setp -- "/px4_n/fmu/in/offboard_control_mode<br>/trajectory_setpoint<br>/vehicle_command" --> PX4
 
     %% MAVLink param push (outside DDS topics)
-    Param -. "MAVSDK (MAVLink param set)<br>(no /fmu/in/* topic)" .-> PX4
+    Param -. "MAVSDK <br>(no /fmu/in/* topic)" .-> PX4
 ```
-`mission_runner` is the only ROS node here; it embeds two helpers: `telemetry` (subscribes to `/fmu/out/*`) and `setpoints` (publishes to `/fmu/in/*`). `px4_param_setter` listens to `/fmu/out/vehicle_status` to detect PX4 STANDBY and then uses MAVSDK (over MAVLink) to push parameters directly to the autopilot, bypassing the `/fmu/in/*` bus.
+`mission_runner` is the only ROS node here; it embeds two helpers: `telemetry` (subscribes to `/fmu/out/*`) and `setpoints` (publishes to `/fmu/in/*`). `px4_param_setter` listens to `/fmu/out/vehicle_status` to detect PX4 STANDBY and then uses MAVSDK (over MAVLink) to push parameters directly to the autopilot, bypassing the `/fmu/in/*` bus.*¹
+
+¹ MAVSDK is limited to parameter push/edge cases because building a MAVSDK backend would force us to re-implement the arbitration, queuing, and conflict-resolution logic that DDS/ROS 2 already routes through the mission runner suite; see [ROS 2 bridge](uxrce_dds_px4_ros_bridge.md). for the full explanation.
 
 ## Stack Overview (single drone)
 - Simulation: Gazebo Classic world + PX4 SITL model chosen from `config/sim/default.yaml` (defaults to `worlds/overrack_indoor.world` and `iris_opt_flow` unless overridden via env/params).
