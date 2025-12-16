@@ -22,7 +22,7 @@ route:
       position: [0.8, 4, 1.5]
       yaw_deg: 180
       inspect: false
-      hover_s: 15.0
+      hover_s: 5.0
 
     - name: BC_photo
       position: [0.8, 4, 1.5]
@@ -35,7 +35,7 @@ route:
       position: [0.8, 4, 0.5]
       yaw_deg: 180
       inspect: false
-      hover_s: 15.0
+      hover_s: 5.0
 
     - name: BC_photo_down
       position: [0.8, 4, 0.5]
@@ -47,7 +47,7 @@ route:
       position: [0.0, 4, 0.5]
       yaw_deg: 180
       inspect: false
-      hover_s: 15.0
+      hover_s: 5.0
 
     - name: C_photo_down
       position: [0.0, 4, 0.5]
@@ -59,7 +59,7 @@ route:
       position: [0.0, 4, 1.5]
       yaw_deg: 180
       inspect: false
-      hover_s: 15.0
+      hover_s: 5.0
 
     - name: C_photo
       position: [0.0, 4, 1.5]
@@ -71,7 +71,7 @@ route:
       position: [-0.8, 4, 1.5]
       yaw_deg: 180
       inspect: false
-      hover_s: 15.0
+      hover_s: 5.0
 
     - name: CD_photo
       position: [-0.8, 4, 1.5]
@@ -83,7 +83,7 @@ route:
       position: [-0.8, 4, 0.5]
       yaw_deg: 180
       inspect: false
-      hover_s: 15.0
+      hover_s: 5.0
 
     - name: CD_photo_down
       position: [-0.8, 4, 0.5]

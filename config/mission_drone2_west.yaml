@@ -4,7 +4,6 @@ route_file: routes/drone2_shelf_west.yaml
 
 inspection:
   enable: true
-  timeout_s: 5.0
 
 fallback:
   battery_warning: ["return_home"]

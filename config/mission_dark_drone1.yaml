@@ -4,7 +4,6 @@ route_file: routes/drone1_dark_east.yaml
 
 inspection:
   enable: true
-  timeout_s: 5.0
 
 fallback:
   battery_warning: ["return_home"]
