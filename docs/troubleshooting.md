@@ -241,21 +241,21 @@ else
 light_pub_->Publish(msg);
 ```
 
-## Transparent roof leaks sunlight
+## Simulate a closed warehouse (sunlight off, keep visibility)
 
 **Symptoms**
 
-- Indoor scene stays bright; LOW_LIGHT events are unreliable because sun light passes through.
+- With an opaque roof you block sunlight and `LOW_LIGHT` behaves correctly, but an external camera cannot see inside; with a transparent roof you can see inside but the sun keeps lighting the scene and light levels are unstable.
 
 **Likely cause**
 
-- The sun light passes through the collision mesh; visual transparency only affects the viewer.
+- The global sun is still active; visual transparency only affects the viewer, not the light. To emulate an enclosed warehouse, the sun must be disabled. An opaque roof fixes the light but removes visibility if your camera sits outside.
 
 **Fix**
 
-1. Remove the global sun include in the world file.
-2. Keep the roof visual transparent for debugging if needed.
-3. Light the scene with indoor spotlights (“neons”) and the drone torch to stabilise LOW_LIGHT detection.
+1. Comment out `<include><uri>model://sun</uri></include>` in the world to disable global sunlight.
+2. Keep the roof physically opaque; if you need to see inside for debugging, make only the roof visual transparent or move the camera inside.
+3. Use indoor lights (neon) and the drone torch to control illumination and get deterministic `LOW_LIGHT`/`OK`/`SUSPECT` events.
 
 **XML snippets**
 
@@ -292,7 +292,8 @@ Keep a transparent visual:
 
 **Likely cause**
 
-- Offboard setpoints are not streamed before `VehicleCommand.DO_SET_MODE`, or preflight checks fail.
+- Offboard setpoints are not streamed (or local position is invalid) before `VehicleCommand.DO_SET_MODE`, so PX4 declines the mode and the mission FSM never reaches `ArmingState`.
+- If PX4 is already in OFFBOARD but the `preflight_checks_pass` flag is still false, the subsequent `VEHICLE_CMD_COMPONENT_ARM_DISARM` will also be rejected.
 
 **Fix**
 
@@ -414,4 +415,3 @@ Running multiple PX4 instances introduces extra failure modes beyond the single-
 4) Configure the airframe mapping: set `PX4_SIM_MODEL` (or `resolve_px4_sim_model`) to a compatible PX4 airframe so motor/sensor expectations match your SDF.  
 5) Add an entry to `config/sim/<simulation_file>.yaml` with `model: <name>`, spawn pose, unique `mavlink_udp_port`, unique XRCE agent port, and optional per-drone `px4_params`.  
 6) Run `./scripts/run_system.sh --params config/sim/<simulation_file>.yaml` and check `data/logs/px4_gazebo.out` plus `ros2 topic list` to confirm the model spawned and the namespaced PX4 topics are present.
-

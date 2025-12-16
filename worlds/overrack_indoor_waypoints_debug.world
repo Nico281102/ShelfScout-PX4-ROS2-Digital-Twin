@@ -56,13 +56,18 @@
       <shadows>true</shadows>
     </scene>
 
-    <gui fullscreen="0">
-      <camera name="overrack_default">
-        <pose>2.0 -7.0 4.0 0.6 0.0 1.57</pose>
-        <view_controller>orbit</view_controller>
-        <track_visual>iris_opt_flow::base_link</track_visual>
-      </camera>
-    </gui>
+<gui fullscreen="0">
+  <camera name="overrack_default">
+    <!-- Posizione iniziale della camera nel mondo -->
+    <pose>-6 -6 8.0 0 0.75 0.7</pose>
+
+    <!-- Camera in modalità FPS -->
+    <view_controller>fps</view_controller>
+
+    <!-- Segui il drone -->
+   <!--  <track_visual>iris_opt_flow::base_link</track_visual>-->
+  </camera>
+</gui>
 
     <physics type="ode">
       <max_step_size>0.004</max_step_size>
@@ -77,8 +82,7 @@
     <include>
       <uri>model://ground_plane</uri>
     </include>
-
-    <!-- Simple room walls -->
+<!-- Simple room walls -->
     <model name="room">
       <static>true</static>
       <pose>0 0 0 0 0 0</pose>
@@ -99,8 +103,12 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.9 0.9 0.9 1</ambient>
-            <diffuse>0.9 0.9 0.9 1</diffuse>
+            <script>
+                <name>Gazebo/Gray</name>
+            </script>
+            <transparency>0</transparency>
+            <ambient>0.6 0.6 0.6 1</ambient>
+            <diffuse>0.6 0.6 0.6 1</diffuse>
           </material>
         </visual>
       </link>
@@ -120,6 +128,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -137,6 +146,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -154,6 +164,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -171,6 +182,7 @@
           <material>
             <ambient>0.85 0.85 0.85 1</ambient>
             <diffuse>0.85 0.85 0.85 1</diffuse>
+            <transparency>0.6</transparency>
           </material>
         </visual>
       </link>
@@ -251,6 +263,7 @@
       <pose>0.8 2.6 1.55 0 0 0</pose>
     </include>
   
+
     <!-- Barcode boards positioned on upper shelves (placeholders) -->
     <!--<include>
       <uri>model://barcode_board</uri>
