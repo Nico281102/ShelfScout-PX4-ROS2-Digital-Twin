@@ -7,7 +7,7 @@ This primer gives newcomers the minimum context before diving into `docs/archite
   - **MAVLink** for SITL/HIL, telemetry, and command/control over serial/UDP/TCP.
   - **uXRCE-DDS** for direct DDS/ROS 2 integration: PX4 publishes/subscribes DDS entities via the embedded Micro XRCE-DDS client.
 - **Offboard mode:** PX4 expects a continuous stream of setpoints from a single publisher at a steady rate. Dropping heartbeats or mixing multiple competing publishers can cause Offboard to disengage or behave unpredictably.
-- **Where to go deeper:** the PX4 ↔ DDS bridge, topic namespaces, and frame conversions are explained in `docs/uxrce_dds_px4_ros_bridge.md`.
+- **Where to go deeper:** the PX4 ↔ DDS bridge, topic namespaces, and frame conversions are explained in [ROS 2 Bridge](uxrce_dds_px4_ros_bridge.md).
 
 ## 2) Gazebo Classic — Role in Simulation
 - **What it is:** a physics engine plus sensor simulator. Worlds and robots are described in **SDF** files; we use **Jinja-templated SDF** to parameterize models (airframe, sensors, environment).
@@ -19,7 +19,7 @@ This primer gives newcomers the minimum context before diving into `docs/archite
 - **DDS basics:** a distributed pub/sub middleware with automatic discovery, QoS policies, and strong typing (IDL-defined message types with generated serializers/deserializers).
 - **QoS essentials:** `reliable` vs `best_effort`; depth/history to bound queues. PX4 uses `BEST_EFFORT` and depth=1 for high-rate telemetry so stale data is dropped instead of queued.
 - **uXRCE client vs Micro XRCE Agent:** PX4 firmware embeds the **Micro XRCE-DDS client** (lightweight, runs on the autopilot) while the **Micro XRCE Agent** runs on the host (PC/edge), translates XRCE sessions to full DDS for ROS 2 nodes.
-- **Why DDS here instead of a MAVSDK backend:** DDS already provides discovery, fan-in/fan-out, and QoS for many ROS 2 nodes; application-level logic (mission runner, fallbacks, inspection) arbitrates commands. See the rationale in `docs/uxrce_dds_px4_ros_bridge.md#why-we-dont-use-a-mavsdk-backend`.
+- **Why DDS here instead of a MAVSDK backend:** DDS already provides discovery, fan-in/fan-out, and QoS for many ROS 2 nodes; application-level logic (mission runner, fallbacks, inspection) arbitrates commands. See the rationale in [ROS 2 Bridge](uxrce_dds_px4_ros_bridge.md#why-we-dont-use-a-mavsdk-backend).
 
 ## 4) Glossary and Resources
 - **uORB** – PX4’s internal pub/sub bus.

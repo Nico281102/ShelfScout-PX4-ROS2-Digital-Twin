@@ -26,7 +26,7 @@ Concise guide to the simulation workflow. Full details live in [docs/](docs/).
 ### Expected output
 
 ShelfScout multi-drone demo in the smaller indoor world:
-[![ShelfScout Multi-Drone Demo](docs/preview/multli_2drones_preview.png)](https://youtu.be/KUdoRD7VAOU)
+[![ShelfScout Multi-Drone Demo](docs/preview/multli_2drones_previewQCG.png)](https://youtu.be/XMNj0RT98lo)
 
 Mega over-rack four-drone preset:
 [![Mega ShelfScout Multi-Drone](docs/preview/multli_4drones_preview.png)](https://youtu.be/LL4VuSNlRJE)
