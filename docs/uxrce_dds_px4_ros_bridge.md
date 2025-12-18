@@ -80,32 +80,45 @@ flowchart LR
 - **Micro XRCE-DDS Agent**: either installed system-wide or referenced through `MICRO_XRCE_AGENT_DIR`. `scripts/run_system.sh` spawns it with the command supplied in `config/sim/multi_1drone.yaml` / `config/sim/multi.yaml`.
 - **ROS 2 Workspace (`ros2_ws`)**: houses `px4_msgs`, `px4_ros_com`, and `overrack_mission`. After sourcing `ros2_ws/install/setup.bash`, any ROS 2 node can interact with PX4 topics using the shared message definitions.
 
+## Why uXRCE-DDS instead of MAVROS 2?
+
+We evaluated MAVROS 2 for the link between PX4 (flight controller) and the companion computer (ROS 2), but we chose the native uXRCE-DDS (DDS-XRCE) bridge for these technical reasons.
+
+### 1) Protocol translation vs DDS gateway
+- **MAVROS 2 is a protocol translator:** it consumes MAVLink streams, decodes them, applies semantic conversions (e.g., NED↔ENU frame transforms), and republishes ROS 2 messages/services. This adds an extra translation layer and per-message processing.
+- **uXRCE-DDS is a DDS gateway/proxy:** PX4 runs a DDS-XRCE client; the Micro XRCE-DDS Agent creates DDS entities on behalf of that client and bridges data into the DDS global data space so ROS 2 sees plain DDS topics.
+
+### 2) Data format and “conversion cost”
+- **MAVROS:** MAVLink payloads must be parsed and mapped into ROS message types (plugin-dependent), often with unit/frame conversions.
+- **uXRCE-DDS:** messages are serialized on the PX4 side using a CDR-family encoding (Micro CDR / XCDR) compatible with DDS. The Agent primarily forwards serialized payloads while handling XRCE sessions and reliability/QoS translation.
+
+### 3) Topic access, timestamps, and performance expectations
+- **Topic coverage:** MAVROS is bounded by the MAVLink message set; DDS-XRCE can expose any PX4 uORB topic that is bridged and present in `px4_msgs`.
+- **Timestamps:** with MAVLink, getting PX4-origin timestamps in ROS 2 depends on time sync and message-specific handling; missing/unstable sync can devolve to “receive time” and add jitter. With DDS-XRCE, uORB timestamps can be carried through more directly, which helps sensor fusion and visual odometry.
+- **Latency/CPU/throughput:** DDS-XRCE can reduce overhead because there is no MAVLink→ROS semantic translation and fewer per-message transforms, but performance still depends on transport (serial/UDP), XRCE reliability settings, and DDS QoS.
+### 4) QoS semantics and hidden limitations
+
+* **MAVROS 2 exposes ROS 2 topics with configurable QoS, but these QoS are not enforced end-to-end.**
+  MAVLink is not data-centric and does not support durability, history, or late-joiner semantics. As a result, QoS policies such as `TRANSIENT_LOCAL` or `KEEP_ALL` cannot be meaningfully implemented, even if they appear configurable at the ROS 2 layer.
+
+* **This can hide fundamental limitations rather than solving them.**
+  MAVROS 2 may accept QoS configurations that are semantically incompatible with PX4/MAVLink, leading to mismatches, degraded behavior, or false expectations (e.g., replay for late joiners).
+
+* **With uXRCE-DDS, QoS constraints are explicit and enforced by DDS matching rules.**
+  PX4 publishes data with well-defined DDS semantics (typically `VOLATILE` and `KEEP_LAST`), and subscribers must adapt accordingly. Unsupported QoS (e.g., `TRANSIENT_LOCAL`, `KEEP_ALL`) simply do not match, making the system behavior predictable and transparent.
+
+
+### Conclusion
+For telemetry-heavy workloads, uXRCE-DDS avoids the MAVLink bottleneck and keeps the stack closer to ROS 2’s native DDS data path, which is a better fit for a real-time digital twin.
+
+
 ## Why we don’t use a MAVSDK backend
 
-PX4 + MAVSDK is a good option when you have a single process controlling one vehicle in a relatively simple way (manual control, missions, basic telemetry). In that setup, one MAVSDK client owns the MAVLink connection and does everything: reads telemetry, sends commands, updates parameters.
+DDS topics (`/fmu/in/*`, `/fmu/out/*`) cover telemetry and Offboard control well, but not every PX4 feature is exposed as a uORB/DDS topic.
 
-In a system like OverRack Scan, however, the autopilot must interact with many independent processes (mission runner, metrics, inspection, future GUI, fleet manager, …). If each process opened its own MAVSDK connection to the drone, PX4 would have to handle multiple MAVLink sessions, multiple heartbeats and potentially conflicting commands, which is fragile and hard to debug.
+In particular, **parameter read/write is still a MAVLink workflow**: there is no `/fmu/in/*` “set parameter” topic in the bridge. For this reason, `px4_param_setter` uses MAVSDK (over MAVLink) only to push parameters (typically when PX4 is in STANDBY).
 
-The usual workaround is to introduce a MAVSDK backend:
-
-- a single process that owns the MAVLink link to PX4
-- it reads all telemetry and exposes it to other components via some local API (gRPC, REST, custom topics, …)
-- it arbitrates commands coming from multiple clients and decides what to actually send to PX4
-
-At that point, the backend has to:
-
-- fan-out telemetry to many consumers
-- fan-in commands from many producers
-- implement its own queuing, arbitration and safety rules
-
-In practice, this turns the MAVSDK backend into a homemade message bus and a single point of failure that must be designed, tested and maintained over time.
-
-DDS/ROS 2 already solves most of the plumbing: it provides a native publish/subscribe bus where PX4 exposes `/fmu/in/*` and `/fmu/out/*`, any number of ROS 2 nodes can subscribe or publish, and discovery, fan-out, QoS and other DDS services happen in the middleware. Command arbitration and semantic conflict resolution remain the responsibility of the application layer (e.g., the mission runner, fallback handlers, metrics, inspection, etc.), so we avoid rebuilding that logic inside a bespoke MAVSDK backend. For this reason, OverRack Scan uses:
-
-- DDS/ROS 2 for all telemetry and setpoints (`/px4_n/fmu/*` topics)
-- MAVSDK/MAVLink only for parameter management and special cases where direct MAVLink access is strictly required
-
-In other words: building a MAVSDK backend would mean re-implementing a middleware that DDS already gives us “for free”, with better scalability and less maintenance.
+We avoid a full “MAVSDK backend” for all data/commands because it would duplicate what DDS already provides (fan-out, discovery, QoS) and add another single point of failure and arbitration layer.
 
 ### Additional notes: DDS typing, sensor streaming, and high-frequency telemetry
 
